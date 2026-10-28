@@ -1,0 +1,14 @@
+PREREGISTRATION.md
+  h_05e5164a29872e 1-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "40374f8efbb9dc3e66b3a6383dc2f9c54c744a44",
+  "prompts": {},
+  "humans": {
+    "h_05e5164a29872e": {
+      "author": "realtonypark <realtonypark@gmail.com>"
+    }
+  }
+}
