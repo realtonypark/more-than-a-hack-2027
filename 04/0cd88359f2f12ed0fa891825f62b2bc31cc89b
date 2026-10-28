@@ -1,0 +1,19 @@
+starter/possession.py
+  s_7eaa1206035ba1::t_75d146d2506c31 1,3-9,11,38-53,133-155,159,176-178,217-299,312-328,333,338-339,342-352,355,359-362
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "040cd88359f2f12ed0fa891825f62b2bc31cc89b",
+  "prompts": {},
+  "sessions": {
+    "s_7eaa1206035ba1": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "01a184a0-b470-75f3-8812-91140d0317c0",
+        "model": "gpt-6.1-terra"
+      },
+      "human_author": "realtonypark <realtonypark@gmail.com>"
+    }
+  }
+}
