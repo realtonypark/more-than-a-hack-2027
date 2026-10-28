@@ -26,6 +26,12 @@ from starter.baseline import HOME, NOBODY, smooth, team_of_each_track  # noqa: E
 # separated flicker from events in three rescue rounds, so none is attempted.
 MARGIN, GAP, PRUNE = 3.0, 100, 12
 D1_MAX, DISP_TAU = 3.0, 0.2  # m; m/frame (ATD ball speed is 91% NaN)
+# P1 two-sided quorum (frozen pre-bundle, /tmp/w3-p1quorum.md §2): an anchor
+# needs >=Q_MIN visible slots on EACH side, else the opponent distance is
+# unknown and the margin gate must not pass. Q_MIN=1 is the minimum
+# cardinality for "measured", not a tuned threshold; all values above are
+# PR1-frozen and unchanged.
+Q_MIN = 1
 # N=25 frozen: holdout linear-interp p90 error 0.36/1.36/4.57m at gaps 10/25/50
 # (round-5 calibration); 25 is the largest gap with p90 < 2m team scale.
 GAP_N = 25
@@ -38,6 +44,10 @@ def scan(raw_path, team_of_track, n, pitch):
     Ball track is pre-read so bracketed missing runs <=GAP_N get linear-interp
     x/y and full votes; 26..250f runs stay voteless (gap-fill hold/X); longer
     and unbracketed runs are untouched.
+
+    Returns codes, d1, margin, disp, qh, qa. margin is finite only where both
+    teams have >=1 visible slot (P1 quorum); single-team frames get -inf
+    (opponent distance unknown), no-vote frames keep +inf with vis False.
     """
     length, width = pitch
     nx = np.full(n, np.nan)
@@ -67,6 +77,8 @@ def scan(raw_path, team_of_track, n, pitch):
     codes = np.full(n, NOBODY, dtype=np.int8)
     d1 = np.full(n, np.inf)
     margin = np.full(n, np.inf)
+    qh = np.zeros(n, dtype=np.int16)  # visible HOME slots (0 = none / no vote)
+    qa = np.zeros(n, dtype=np.int16)  # visible AWAY slots
     bx = np.full(n, np.nan)
     by = np.full(n, np.nan)
     with open(raw_path) as handle:
@@ -85,6 +97,7 @@ def scan(raw_path, team_of_track, n, pitch):
             else:
                 continue
             best, team, bh, ba = None, NOBODY, np.inf, np.inf
+            ch, ca = 0, 0
             for slot, group in enumerate(parts[1].split(";")):
                 if group[0] == "N":
                     continue
@@ -94,20 +107,26 @@ def scan(raw_path, team_of_track, n, pitch):
                 dist = dx * dx + dy * dy
                 if team_of_track[slot] == HOME:
                     bh = min(bh, dist)
+                    ch += 1
                 else:
                     ba = min(ba, dist)
+                    ca += 1
                 if best is None or dist < best:
                     best, team = dist, team_of_track[slot]
             if best is None:
                 continue
             codes[frame] = team
             d1[frame] = float(np.sqrt(best))
-            margin[frame] = abs(float(np.sqrt(bh) - np.sqrt(ba)))
+            qh[frame], qa[frame] = ch, ca
+            if ch > 0 and ca > 0:
+                margin[frame] = abs(float(np.sqrt(bh) - np.sqrt(ba)))
+            else:
+                margin[frame] = -np.inf  # one side unseen: gap UNKNOWN, not far
             bx[frame], by[frame] = px, py
     disp = np.full(n, np.inf)
     ok = ~np.isnan(bx[1:]) & ~np.isnan(bx[:-1])
     disp[1:][ok] = np.hypot(np.diff(bx)[ok], np.diff(by)[ok])
-    return codes, d1, margin, disp
+    return codes, d1, margin, disp, qh, qa
 
 
 def interpolate(n, anchors, teams):
@@ -184,11 +203,13 @@ def hold_fill(w):
 def main():
     meta_path, raw_path = require(["atd_meta", "atd_raw"], GAME, None)
     n = source_frames("tactical", GAME)
-    codes, d1, margin, disp = scan(raw_path, team_of_each_track(meta_path), n,
-                                   GAMES[GAME]["pitch"])
+    codes, d1, margin, disp, qh, qa = scan(
+        raw_path, team_of_each_track(meta_path), n, GAMES[GAME]["pitch"])
     vis = codes != NOBODY
+    dual = (qh >= Q_MIN) & (qa >= Q_MIN)  # P1: both sides observed (margin is
+    # two-sided by construction now; the predicate stays as documented intent)
     letter = np.where(codes == HOME, "H", np.where(vis, "A", "X"))
-    anchors = np.flatnonzero(vis & (margin > MARGIN) & (d1 < D1_MAX)
+    anchors = np.flatnonzero(vis & dual & (margin > MARGIN) & (d1 < D1_MAX)
                              & (disp < DISP_TAU))
     team = prune(interpolate(n, anchors, letter[anchors]))
     alive = np.isin(smooth(codes, 50), ("H", "A"))  # mask only, not teams
