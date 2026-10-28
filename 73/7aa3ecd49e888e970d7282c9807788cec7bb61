@@ -1,0 +1,18 @@
+starter/p2_atd_track.py
+  h_05e5164a29872e 47-50
+starter/p5_atd_check.py
+  h_05e5164a29872e 1-154
+starter/possession.py
+  h_05e5164a29872e 1,3-7,15-20,33,35-36,71-101,195-422,425-429,432-435,462-477,481,484-485,488-489,493,495,511,513-523,764-859,866-869,872-898,900-905,907,909-957
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "737aa3ecd49e888e970d7282c9807788cec7bb61",
+  "prompts": {},
+  "humans": {
+    "h_05e5164a29872e": {
+      "author": "realtonypark <realtonypark@gmail.com>"
+    }
+  }
+}
