@@ -1,0 +1,18 @@
+starter/possession.py
+  h_05e5164a29872e 29-34,47-50,80-81,100,110,113,120-124,129,206-207,209-210,212
+starter/quorum_audit.py
+  h_05e5164a29872e 1-139
+starter/quorum_matrix.py
+  h_05e5164a29872e 1-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "85c03933bffd2b4a1abccb360eee21c5707bef6e",
+  "prompts": {},
+  "humans": {
+    "h_05e5164a29872e": {
+      "author": "realtonypark <realtonypark@gmail.com>"
+    }
+  }
+}
