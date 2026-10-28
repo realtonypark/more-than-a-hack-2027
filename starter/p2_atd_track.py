@@ -44,8 +44,10 @@ def run_pr1_track(use_graded=True, use_quorum=False, want_touch=False):
     touch, log). use_graded=False runs the frozen prune() control."""
     meta_path, raw_path = require(["atd_meta", "atd_raw"], GAME, None)
     n = source_frames("tactical", GAME)
-    codes, d1, margin, disp = scan(raw_path, team_of_each_track(meta_path), n,
-                                   GAMES[GAME]["pitch"])
+    # Merged scan returns qh/qa too (P1); the -inf margin already excludes
+    # single-team frames from the gate below, so no dual predicate is needed.
+    codes, d1, margin, disp = scan(raw_path, team_of_each_track(meta_path),
+                                   n, GAMES[GAME]["pitch"])[:4]
     vis = codes != NOBODY
     letter = np.where(codes == HOME, "H", np.where(vis, "A", "X"))
     gate = vis & (margin > MARGIN) & (d1 < D1_MAX) & (disp < DISP_TAU)
