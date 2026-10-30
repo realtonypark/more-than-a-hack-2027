@@ -1026,6 +1026,66 @@ def bridge_candidates(walls, final, frac_slow, st_windows):
     return bridged
 
 
+def refine_boundaries(final, letter, gate, walls, halves):
+    """Move desert-fill H/A boundaries to the vote crossover (--refine).
+
+    Bundle-day Rule-R (confidence hierarchy: anchors > votes > fill
+    convention). Inter-anchor gaps over GAP are abandoned by interpolate
+    (50f stubs + X core) and hold-fill extends the LEFT team through the
+    core -- a direction convention, not evidence. Where such a desert
+    fill meets the other team, re-place the boundary at the vote-purity
+    crossover (argmax left-team-frac + right-team-frac), constrained
+    inside the anchor gap (anchors never move) and never touching D.
+    True-midpoint gaps (<= GAP) keep interpolate's split: both anchors
+    are nearby and outvote the low-confidence desert votes. Moves under
+    PRUNE frames are flicker noise and stay put. Returns (labels, moves).
+    """
+    n = len(final)
+    wmask = np.zeros(n, dtype=bool)
+    for ws, we, _ in walls:
+        wmask[ws:we] = True
+    anchors = np.flatnonzero(gate)
+    out = final.copy()
+    moves = []
+    if len(anchors) < 2:
+        return out, moves
+    for b in np.flatnonzero(out[1:] != out[:-1]) + 1:
+        if out[b - 1] not in ("H", "A") or out[b] not in ("H", "A"):
+            continue  # D/X edges are wall/stoppage placed; keep
+        if wmask[b - 1] or wmask[b]:
+            continue
+        li = np.searchsorted(anchors, b, side="left") - 1
+        ri = np.searchsorted(anchors, b, side="right")
+        if li < 0 or ri >= len(anchors):
+            continue
+        aL, aR = int(anchors[li]), int(anchors[ri])
+        if aR - aL <= GAP or b <= aL or b >= aR:
+            continue  # true midpoint or outside the gap; keep
+        LT, RT = out[b - 1], out[b]
+        v = letter[aL:aR]
+        L = len(v)
+        cL = np.concatenate(([0], np.cumsum(v == LT)))
+        cR = np.concatenate(([0], np.cumsum(v == RT)))
+        best, bests = 0, -1.0
+        for f in range(1, L):
+            sc = cL[f] / f + (cR[L] - cR[f]) / (L - f)
+            if sc > bests:
+                bests, best = sc, f
+        nb = aL + best
+        if abs(nb - b) <= PRUNE:
+            continue
+        if nb < b:
+            if (out[nb:b] != LT).any() or wmask[nb:b].any():
+                continue
+            out[nb:b] = RT
+        else:
+            if (out[b:nb] != RT).any() or wmask[b:nb].any():
+                continue
+            out[b:nb] = LT
+        moves.append((b, nb))
+    return out, moves
+
+
 def seed_chain(chain, prior, halves):
     """Seed each half's leading chain-X run from the interpolated team.
 
@@ -1045,7 +1105,7 @@ def seed_chain(chain, prior, halves):
 
 
 def run_pipeline(raw_path, meta_path, halves, n, pitch, walls=None,
-                 use_touch=False, use_e6=False):
+                 use_touch=False, use_e6=False, use_refine=False):
     """Full integrated stack -> (final labels, walls). No I/O.
 
     walls=None derives K1 morphology walls from the scan's own codes.
@@ -1105,6 +1165,9 @@ def run_pipeline(raw_path, meta_path, halves, n, pitch, walls=None,
         # Uncapped (PR1): the scorer back-fills leading X from first-known
         # regardless, so HEAD_CAP only spends macroF1 for identical spells.
         final[a:b + 1] = hold_fill(final[a:b + 1])
+    if use_refine:
+        final, moves = refine_boundaries(final, letter, gate, walls, halves)
+        print("refine: {} boundary moves {}".format(len(moves), moves))
     assert_wall_invariants(final, walls, d_pre, halves)  # shipped artifact
     return final, walls
 
@@ -1348,6 +1411,8 @@ def main(argv=None):
                     help="stamp tracked out-of-pitch spans D (Rule-D)")
     ap.add_argument("--bridge", action="store_true",
                     help="bridge played-through morph walls (Rule-B)")
+    ap.add_argument("--refine", action="store_true",
+                    help="desert-fill boundaries to vote crossover (Rule-R)")
     args = ap.parse_args(argv)
     meta_path, raw_path = require(["atd_meta", "atd_raw"], GAME, None)
     n = source_frames("tactical", GAME)
@@ -1399,7 +1464,7 @@ def main(argv=None):
                     len(extra), [(a, b) for a, b, _ in extra]))
         final, walls = run_pipeline(raw_path, meta_path, halves, n, pitch,
                                     walls, use_touch=args.touch,
-                                    use_e6=args.e6)
+                                    use_e6=args.e6, use_refine=args.refine)
         n_d = sum(we - ws for ws, we, _ in walls)
         flags = {}
         for _, _, flag in walls:
