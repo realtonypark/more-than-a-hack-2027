@@ -69,8 +69,8 @@ def main():
     print("== A1 visibility + margin audit (n={}) ==".format(n))
     for name, m in (("all", np.ones(n, dtype=bool)), ("graded", graded)):
         v, d = vis & m, dual & m
-        qh_m, qa_m = qh[m], qa[m]
-        vis_m = v
+        qh_m, qa_m = qh, qa  # full-length: vis_m already carries the mask;
+        vis_m = v            # qh[m] compression broke broadcast on "graded"
         print(" [{}] frames={} vis={} dual={} single-H={} single-A={} none={}"
               .format(name, int(np.sum(m)), int(np.sum(vis_m)),
                       int(np.sum(d)),
