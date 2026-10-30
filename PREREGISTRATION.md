@@ -114,12 +114,6 @@ overlapping not additive). 0.6+ is reachable, not banked.
 - ANCHOR AUTOPSY: 0 opposite-team anchors across miss windows (P07:
   127H/0A over 641f incl two true A spells; G01: 0H over 202f H).
   Proximity lies for seconds; only a touch signal can fix it.
-- ST-VETO (frozen before first veto-score): G14 all-D-over-H has fully
-  visible ball (tracker lost PLAYERS in a crowded box) inside provider
-  attack phases. Rule: drop morphD walls fully inside in-play ST phases
-  (all 13 codes except SET PIECES/GOALS, from the 638-phase inventory);
-  ST never writes D (DATA.md:179-180), only vetoes tracker-D. D-share
-  floor 0.10 aborts the veto. Ship iff structure sane + improves.
 - TOUCH-CHAIN (frozen before first touch-score): V_TOUCH=5.0 (|dv| m/s;
   physics kick impulse; provider p995 4.81, 485 candidates), fallback
   4.0 iff attributed<200 (starvation, GT-blind), R_TOUCH=2.0/DZ_R=2.0

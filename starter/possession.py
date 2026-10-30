@@ -306,26 +306,6 @@ def slot_speeds(raw_path, n):
     return mean, frac, cnt
 
 
-# ST codes asserting live play: every phase code EXCEPT stoppage-adjacent
-# SET PIECES / GOALS, whose windows span dead+live too coarsely to place
-# cuts (frozen 2026-10-30 from the 638-phase provider inventory; no GT).
-ST_VETO_EXCLUDE = ("set pieces", "goals")
-
-
-def veto_windows(game=GAME, data_dir=None):
-    """In-play Smart Tagging windows [(start, end)] asserting live play.
-
-    Used ONLY to veto tracker-D walls (ST never writes a D label,
-    DATA.md:179-180). Missing ST -> [] (no veto)."""
-    try:
-        events = st_load(game, data_dir)
-    except Exception as err:
-        print("veto_windows: no Smart Tagging -> no veto")
-        return []
-    return [(ev["start_frame"], ev["end_frame"]) for ev in events
-            if (ev["code"] or "").strip().lower() not in ST_VETO_EXCLUDE]
-
-
 def setpiece_windows(game=GAME, data_dir=None):
     """ST SET PIECES candidate windows [start-3s, end+1s) in video frames.
 
@@ -943,15 +923,14 @@ def hold_fill(w, head_cap=None):
     return out
 
 
-def morphology_walls(codes, halves, veto=None):
+def morphology_walls(codes, halves):
     """D-wall spans from the PR1 alive mask (K1 fallback, always available).
 
-    D runs >= D_MIN_KEEP of the smooth50 alive mask become "morphD" walls.
-    ST veto (pre-registered 2026-10-30): a wall fully inside an in-play
-    provider phase contradicts the provider (tracker lost players/ball in
-    live play, e.g. crowded-box occlusions) and is dropped. D-share floor
-    0.10 over graded halves aborts the veto wholesale (anti-collapse).
-    Trigger walls (--walls) replace these once T-ATD-1 passes.
+    Integration choice (w3-integrate, pre-data, non-GT): D runs >= D_MIN_KEEP
+    of the smooth50 alive mask become "morphD" walls, so default D behavior
+    matches PR1 structurally while the guarded vote (which never votes across
+    walls) stays active. Trigger walls (--walls) replace these once T-ATD-1
+    passes; see starter/p5_atd_check.py.
     """
     mask = smooth(codes, 50)
     walls = []
@@ -959,18 +938,6 @@ def morphology_walls(codes, halves, veto=None):
         for rs, re in _nan_runs(mask[ha:hb + 1] == "D"):
             if re - rs >= D_MIN_KEEP:
                 walls.append((ha + rs, ha + re, "morphD"))
-    if veto:
-        kept = [w for w in walls
-                if not any(vs <= w[0] and w[1] <= ve for vs, ve in veto)]
-        total = sum(hb + 1 - ha for _, ha, hb in halves)
-        share = sum(e - s for s, e, _ in kept) / total
-        if share < 0.10:
-            print("st-veto: D-share {:.3f} < 0.10 floor, veto aborted"
-                  .format(share))
-            return walls
-        print("st-veto: dropped {} of {} morphD walls".format(
-            len(walls) - len(kept), len(walls)))
-        walls = kept
     return walls
 
 
@@ -1003,7 +970,7 @@ def run_pipeline(raw_path, meta_path, halves, n, pitch, walls=None,
     codes, d1, margin, disp, qh, qa = scan(
         raw_path, team_of_each_track(meta_path), n, pitch)[:6]
     if walls is None:
-        walls = morphology_walls(codes, halves, veto_windows())
+        walls = morphology_walls(codes, halves)
     inplay = np.zeros(n, dtype=bool)
     for es, ee in episodes_from_walls(n, walls, halves):
         inplay[es:ee] = True
