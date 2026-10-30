@@ -958,6 +958,74 @@ def touch_team(raw_path, team_of_track, n, pitch, halves):
     return team
 
 
+def out_spans(nx, ny, halves, min_len=GAP):
+    """In-half ball-out spans (tracked outside the pitch) >= min_len.
+
+    Bundle-day Rule-D (minimal): a tracked ball outside the pitch is dead
+    by the Laws; ST never writes D (DATA.md), but geometry is not ST. Only
+    the out-frames themselves are stamped (no restart-lag tail: kick/ST
+    ends were falsified on bundle data). min_len=GAP reuses the frozen
+    interpolation horizon to reject line-jitter (104 raw outs, 16 pass).
+    """
+    n = len(nx)
+    oob = (~np.isnan(nx)) & ((nx < 0) | (nx > 1) | (ny < 0) | (ny > 1))
+    ed = np.diff(np.concatenate(([0], oob.view(np.int8), [0])))
+    spans = []
+    for os_, oe in zip(np.flatnonzero(ed == 1).tolist(),
+                       np.flatnonzero(ed == -1).tolist()):
+        if oe - os_ < min_len:
+            continue
+        for _, ha, hb in halves:  # walls never cross a half boundary
+            cs, ce = max(os_, ha), min(oe, hb + 1)
+            if ce - cs >= min_len:
+                spans.append((cs, ce, "outD"))
+    return spans
+
+
+def bridge_candidates(walls, final, frac_slow, st_windows):
+    """Morph walls to bridge: same-team flanks + stillness dip, no ST.
+
+    Bundle-day Rule-B (literal, threshold-free): a ball-blind span the
+    players visibly play through (wall-span stillness below BOTH flanks)
+    with the same team either side and no documented set piece is live
+    ball (occlusion), not dead. Flanks are nearest H/A runs (>= PRUNE).
+    Returns [(ws, we)] bridged away. 6/133 fire on the bundle.
+    """
+    n = len(final)
+    bridged = []
+    for ws, we, flag in walls:
+        if flag != "morphD":
+            continue
+        fl, fw = [], []
+        for i, step in ((ws - 1, -1), (we, 1)):
+            while 0 <= i < n and final[i] not in ("H", "A"):
+                i += step
+            if not (0 <= i < n):
+                fl.append("-")
+                fw.append(0)
+                continue
+            t = final[i]
+            ln = 0
+            while 0 <= i < n and final[i] == t:
+                ln += 1
+                i += step
+            fl.append(t)
+            fw.append(ln)
+        if not (fl[0] == fl[1] and fl[0] in ("H", "A")
+                and fw[0] >= PRUNE and fw[1] >= PRUNE):
+            continue
+        with np.errstate(all="ignore"):
+            sw = float(np.nanmean(frac_slow[ws:we]))
+            sL = float(np.nanmean(frac_slow[max(0, ws - 150):ws]))
+            sR = float(np.nanmean(frac_slow[we:min(n, we + 150)]))
+        if not (sw < min(sL, sR)):
+            continue
+        if any(a < we and b > ws for a, b, _ in st_windows):
+            continue
+        bridged.append((ws, we))
+    return bridged
+
+
 def seed_chain(chain, prior, halves):
     """Seed each half's leading chain-X run from the interpolated team.
 
@@ -1276,6 +1344,10 @@ def main(argv=None):
                     help="last-touch ownership team stage (pre-registered)")
     ap.add_argument("--e6", action="store_true",
                     help="P2 graded rescue instead of prune12 (gated)")
+    ap.add_argument("--outD", action="store_true",
+                    help="stamp tracked out-of-pitch spans D (Rule-D)")
+    ap.add_argument("--bridge", action="store_true",
+                    help="bridge played-through morph walls (Rule-B)")
     args = ap.parse_args(argv)
     meta_path, raw_path = require(["atd_meta", "atd_raw"], GAME, None)
     n = source_frames("tactical", GAME)
@@ -1297,6 +1369,34 @@ def main(argv=None):
             walls = detect_dead_spans(nx, ny, mean_spd, frac_slow, halves,
                                       pitch, st_windows)
             print("ST windows: {}".format(len(st_windows)))
+        if (args.bridge or args.outD) and not args.walls:
+            # Two-pass: pass 1 is the control (the bridge audit reads its
+            # flanks); pass 2 re-runs with bridged walls + outD spans.
+            # Both flags are ignored under --walls (trigger population).
+            nx, ny = ball_track(raw_path, n)
+            if args.bridge:
+                control, _ = run_pipeline(
+                    raw_path, meta_path, halves, n, pitch, None,
+                    use_touch=args.touch, use_e6=args.e6)
+                mean_spd, frac_slow, _ = slot_speeds(raw_path, n)
+                st_windows = setpiece_windows()
+                morph = morphology_walls(
+                    scan(raw_path, team_of_track, n, pitch)[0], halves)
+                bridged = bridge_candidates(morph, control, frac_slow,
+                                            st_windows)
+                walls = [w for w in morph if (w[0], w[1]) not in bridged]
+                print("bridge: dropping {} walls {}".format(len(bridged),
+                                                            bridged))
+            else:
+                walls = morphology_walls(
+                    scan(raw_path, team_of_track, n, pitch)[0], halves)
+            if args.outD:
+                extra = out_spans(nx, ny, halves)
+                have = set((w[0], w[1]) for w in walls)
+                walls = walls + [w for w in extra
+                                 if (w[0], w[1]) not in have]
+                print("outD: adding {} spans {}".format(
+                    len(extra), [(a, b) for a, b, _ in extra]))
         final, walls = run_pipeline(raw_path, meta_path, halves, n, pitch,
                                     walls, use_touch=args.touch,
                                     use_e6=args.e6)
