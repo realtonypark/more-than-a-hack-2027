@@ -1026,7 +1026,7 @@ def bridge_candidates(walls, final, frac_slow, st_windows):
     return bridged
 
 
-def refine_boundaries(final, letter, gate, walls, halves):
+def refine_boundaries(final, letter, gate, walls, halves, out_mask=None):
     """Move desert-fill H/A boundaries to the vote crossover (--refine).
 
     Bundle-day Rule-R (confidence hierarchy: anchors > votes > fill
@@ -1038,7 +1038,9 @@ def refine_boundaries(final, letter, gate, walls, halves):
     inside the anchor gap (anchors never move) and never touching D.
     True-midpoint gaps (<= GAP) keep interpolate's split: both anchors
     are nearby and outvote the low-confidence desert votes. Moves under
-    PRUNE frames are flicker noise and stay put. Returns (labels, moves).
+    PRUNE frames are flicker noise and stay put. Moves spanning tracked
+    out-of-pitch frames are refused (out_mask): a dead ball must never
+    be painted H/A. Returns (labels, moves).
     """
     n = len(final)
     wmask = np.zeros(n, dtype=bool)
@@ -1074,6 +1076,8 @@ def refine_boundaries(final, letter, gate, walls, halves):
         nb = aL + best
         if abs(nb - b) <= PRUNE:
             continue
+        if out_mask is not None and out_mask[min(nb, b):max(nb, b)].any():
+            continue  # LAW: never paint a tracked out-of-pitch ball H/A
         if nb < b:
             if (out[nb:b] != LT).any() or wmask[nb:b].any():
                 continue
@@ -1166,7 +1170,12 @@ def run_pipeline(raw_path, meta_path, halves, n, pitch, walls=None,
         # regardless, so HEAD_CAP only spends macroF1 for identical spells.
         final[a:b + 1] = hold_fill(final[a:b + 1])
     if use_refine:
-        final, moves = refine_boundaries(final, letter, gate, walls, halves)
+        nx, ny = ball_track(raw_path, n)
+        out_mask = np.zeros(n, dtype=bool)
+        for os_, oe, _ in out_spans(nx, ny, halves):
+            out_mask[os_:oe] = True
+        final, moves = refine_boundaries(final, letter, gate, walls, halves,
+                                         out_mask)
         print("refine: {} boundary moves {}".format(len(moves), moves))
     assert_wall_invariants(final, walls, d_pre, halves)  # shipped artifact
     return final, walls
