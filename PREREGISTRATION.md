@@ -37,9 +37,10 @@ ball-NaN windowed means / p40 over graded halves, fallback p10/p50) and
 re-registers the two numbers BEFORE the first scored run.
 
 Integration (w3-integrate): morphD walls are smooth50-mask D runs
-≥ D_MIN_KEEP (K1 fallback, always available). graded_prune runs GLOBAL
-E6 (exactly as measured), not per-episode: X-skip semantics already
-prevent wall crossing on the team stage, where wall frames are X.
+≥ D_MIN_KEEP (K1 fallback, always available). Team stage is PR1 prune12:
+E6 graded rescue was killed (0.5103 < control 0.5241 on the PR1 track)
+and is default-off behind --e6 for ablation only. [Corrected
+2026-10-30; frozen original in git history.]
 
 ## Gates (all staged as runnable scripts, all SKIP-clean without data)
 
