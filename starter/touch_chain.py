@@ -3,17 +3,17 @@
 Motivation: the anchor autopsy showed ZERO opposite-team anchors across
 entire miss windows (e.g., 127H/0A over the 641f P07 monster spanning two
 true A spells): nearest-proximity lies for seconds in duels, scrambles,
-and shields. Football possession follows the last touch; this module
-builds ownership from attributed ball touches instead of proximity.
+and shields. Football possession follows the last touch.
 
-Thresholds (frozen before the first touch-score; see PREREGISTRATION.md):
-V_TOUCH=5.0 m/s frame-delta (physics: a clear kick impulse; provider
-p995=4.81, p999=6.85; yields ~485 candidates/match, precision-first),
-V_PERSIST=0.5 (impulses persist frame+1, jitter reverts; round dichotomy),
-R_TOUCH=2.0 m (body scale: ball within reach to attribute),
-DZ_R=2.0 m (duel veto: both teams inside -> contested, hold last owner).
-Structural fallback (GT-blind): V_TOUCH_FB=4.0 iff attributed touches
-fall below MIN_ATTRIBUTED=200 (~1/1000f starvation floor).
+v2 (frozen before the first v2-score): v1 fired on in-flight noise
+(fast-ball jitter far from players, which persistence cannot reject
+because fast motion persists). v2 gates on PROXIMITY FIRST (ball must be
+at feet), then a loose event: |dv| > V_TOUCH=2.0 m/s (walking-pace kick;
+above the p90 0.89 jitter band) OR heading turn > V2_TURN=30deg with
+min-speed V2_MINV=3.0 m/s (clear deflection at jog pace; the min-speed
+gates low-speed heading noise). Persistence (V_PERSIST=0.5), slow-endpoint
+attribution, R_TOUCH=2.0m / DZ_R=2.0m (body scale) kept. Structural
+fallback (GT-blind): V_TOUCH_FB=1.0 iff attributed < MIN_ATTRIBUTED=200.
 
 numpy-only. No GT contact: distributions + physics + body scale only.
 """
@@ -23,9 +23,11 @@ import numpy as np
 from starter.baseline import HOME  # noqa: E402
 
 FPS = 25.0
-V_TOUCH = 5.0
+V_TOUCH = 2.0
+V_TOUCH_FB = 1.0
 V_PERSIST = 0.5
-V_TOUCH_FB = 4.0
+V2_TURN = 30.0
+V2_MINV = 3.0
 R_TOUCH = 2.0
 DZ_R = 2.0
 MIN_ATTRIBUTED = 200
@@ -43,54 +45,33 @@ def _frame_dv(bx, by):
     return v, d
 
 
-def touch_candidates(bx, by, v_touch=V_TOUCH):
-    """Frames with a persistent |dv| kick impulse (bx/by in meters).
-
-    A real impulse persists: frame+1 speed stays near frame speed.
-    Tracking jitter spikes then reverts, so unconfirmed spikes are
-    rejected. Unconfirmable (NaN frame+1) candidates pass through;
-    the attribution radius still gates them.
-    """
-    v, d = _frame_dv(bx, by)
-    out = []
-    for f in np.flatnonzero(d > v_touch):
-        if f + 1 >= len(v) or np.isnan(v[f + 1]):
-            out.append(f)
-        elif min(v[f], v[f + 1]) / max(v[f], v[f + 1]) > V_PERSIST:
-            out.append(f)
-    return np.array(out, dtype=int)
+def _heading_turn(bx, by):
+    """Turn angle (deg) at each frame between incoming/outgoing segments."""
+    dx, dy = np.diff(bx), np.diff(by)
+    turn = np.full_like(bx, np.nan, dtype=float)
+    h0 = np.arctan2(dy[:-1], dx[:-1])
+    h1 = np.arctan2(dy[1:], dx[1:])
+    turn[1:-1] = (np.abs((h1 - h0 + np.pi) % (2 * np.pi) - np.pi)
+                  * 180.0 / np.pi)
+    return turn
 
 
-def touch_chain(raw_path, team_of_track, n, pitch, halves, bx, by,
-                v_touch=V_TOUCH):
-    """Ownership H/A/X per frame from the last attributed touch.
-
-    bx/by: ball meters (NaN where missing). Attribution: nearest slot
-    team within R_TOUCH at the candidate frame; DZ veto (both teams
-    within DZ_R) holds the last owner. Chain resets to X at each half
-    start. Returns (ownership, info dict). One raw pass over candidates.
-    """
+def slot_proximity(raw_path, team_of_track, n, pitch):
+    """Per-frame (minH, minA) ball-slot meters. One raw pass."""
     pw, ph = pitch
-    v, _ = _frame_dv(bx, by)
-    # Attribute at the slower endpoint: contact happens at low speed
-    # (kicks leave fast, traps arrive fast); the jumped-to frame has
-    # already left the feet. Ball pos comes from the meter arrays.
-    want = {}
-    cands = touch_candidates(bx, by, v_touch).tolist()
-    for f in cands:
-        fs = f - 1 if v[f - 1] <= v[f] else f
-        want.setdefault(fs, []).append(f)
-    touches = {}
-    vetoed = 0
+    minH = np.full(n, np.inf)
+    minA = np.full(n, np.inf)
     with open(raw_path, "r") as handle:
         for line in handle:
-            frame = int(line.split(":", 1)[0]) - 1
-            if frame not in want:
+            parts = line.split(":")
+            if len(parts) != 3:
                 continue
-            parts = line.rstrip("\n").split(":")
-            if len(parts) < 3 or not parts[1]:
+            frame = int(parts[0]) - 1
+            if not (0 <= frame < n) or parts[2][0] == "N" or not parts[1]:
                 continue
-            px, py = bx[frame], by[frame]
+            c1 = parts[2].index(",")
+            px = float(parts[2][:c1]) * pw
+            py = float(parts[2][c1 + 1:parts[2].index(",", c1 + 1)]) * ph
             bh, ba = np.inf, np.inf
             for slot, group in enumerate(parts[1].split(";")):
                 if not group or group[0] == "N":
@@ -98,19 +79,52 @@ def touch_chain(raw_path, team_of_track, n, pitch, halves, bx, by,
                 f = group.split(",")
                 if len(f) < 2:
                     continue
-                dist = np.hypot(float(f[0]) * pw - px, float(f[1]) * ph - py)
+                dist = np.hypot(float(f[0]) * pw - px,
+                                float(f[1]) * ph - py)
                 if team_of_track[slot] == HOME:
                     bh = min(bh, dist)
                 else:
                     ba = min(ba, dist)
-            if min(bh, ba) > R_TOUCH:
-                continue  # unattributed: nobody within reach
-            if bh < DZ_R and ba < DZ_R:
-                vetoed += 1
-                continue  # duel: hold last owner
-            team = "H" if bh < ba else "A"
-            for f in want[frame]:
-                touches[f] = team
+            minH[frame], minA[frame] = bh, ba
+    return minH, minA
+
+
+def touch_chain(raw_path, team_of_track, n, pitch, halves, bx, by,
+                v_touch=V_TOUCH):
+    """Ownership H/A/X per frame from the last attributed touch.
+
+    bx/by: ball meters. Event: |dv|>v_touch OR (turn>V2_TURN at speed).
+    Persistence confirmation, proximity-first, slow-endpoint attribution,
+    DZ duel veto. Chain resets to X at each half start. Returns
+    (ownership, info dict).
+    """
+    v, d = _frame_dv(bx, by)
+    turn = _heading_turn(bx, by)
+    turning = np.zeros(n, dtype=bool)
+    turning[1:-1] = ((turn[1:-1] > V2_TURN)
+                     & (np.minimum(v[1:-1], v[2:]) > V2_MINV))
+    event = (d > v_touch) | turning
+    confirmed = np.ones(n, dtype=bool)
+    both = ~np.isnan(v[:-1]) & ~np.isnan(v[1:])
+    mx = np.maximum(v[:-1], v[1:])
+    okp = both & (mx > 0)
+    ratio = np.zeros(n - 1, dtype=bool)
+    ratio[okp] = ((np.minimum(v[:-1][okp], v[1:][okp]) / mx[okp])
+                  > V_PERSIST)
+    confirmed[:-1] = ratio | ~both
+    minH, minA = slot_proximity(raw_path, team_of_track, n, pitch)
+    touches = {}
+    vetoed = 0
+    n_prox = 0
+    for f in np.flatnonzero(event & confirmed):
+        fs = f if np.isnan(v[f - 1]) else (f - 1 if v[f - 1] <= v[f] else f)
+        if min(minH[fs], minA[fs]) >= R_TOUCH:
+            continue
+        n_prox += 1
+        if minH[fs] < DZ_R and minA[fs] < DZ_R:
+            vetoed += 1
+            continue
+        touches[f] = "H" if minH[fs] < minA[fs] else "A"
     own = np.full(n, "X", dtype="<U1")
     for _, ha, hb in halves:
         owner = "X"
@@ -118,5 +132,6 @@ def touch_chain(raw_path, team_of_track, n, pitch, halves, bx, by,
             if f in touches:
                 owner = touches[f]
             own[f] = owner
-    return own, {"candidates": len(cands), "attributed": len(touches),
+    return own, {"events": int(np.sum(event & confirmed)),
+                 "proximate": n_prox, "attributed": len(touches),
                  "vetoed": vetoed, "v_touch": v_touch}

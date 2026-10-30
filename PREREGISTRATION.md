@@ -126,3 +126,11 @@ overlapping not additive). 0.6+ is reachable, not banked.
   everyone). Fix, frozen before re-run: persistence confirmation (speed
   must persist frame+1, V_PERSIST=0.5 round dichotomy; jitter reverts)
   + slow-endpoint attribution (contact at low speed).
+- TOUCH-V2 (frozen before first v2-score): v1 fired on IN-FLIGHT noise
+  (fast-ball jitter far from players; persistence cannot reject
+  persistent fast motion). v2 gates PROXIMITY FIRST (ball <2m, body
+  scale), then loose event: |dv|>V_TOUCH=2.0 (walking-pace kick; above
+  p90 0.89 band) OR turn>V2_TURN=30deg at min-speed V2_MINV=3.0 (clear
+  deflection at jog pace; gates low-speed heading noise). Persistence,
+  DZ veto, slow-endpoint kept. Fallback 1.0 iff attributed<200. Ship
+  rule unchanged (structure + improves + spot-audit + CIs).

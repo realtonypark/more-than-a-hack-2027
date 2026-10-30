@@ -951,9 +951,10 @@ def touch_team(raw_path, team_of_track, n, pitch, halves):
         team, info = touch_chain(raw_path, team_of_track, n, pitch, halves,
                                  nx * pitch[0], ny * pitch[1], V_TOUCH_FB)
         info["fallback"] = True
-    print("touch: v={} candidates={} attributed={} vetoed={}{}".format(
-        info["v_touch"], info["candidates"], info["attributed"],
-        info["vetoed"], " FALLBACK" if info.get("fallback") else ""))
+    print("touch: v={} events={} proximate={} attributed={} vetoed={}{}"
+          .format(info["v_touch"], info["events"], info["proximate"],
+                  info["attributed"], info["vetoed"],
+                  " FALLBACK" if info.get("fallback") else ""))
     return team
 
 
