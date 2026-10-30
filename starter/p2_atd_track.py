@@ -27,6 +27,18 @@ from starter.possession import (D1_MAX, DISP_TAU, MARGIN, graded_prune,  # noqa:
 TOUCH_DISP, TOUCH_D1 = 0.5, 1.5
 
 
+def final_log_records(records):
+    """Deduplicate fixpoint-log records by (s, e), keeping first decision.
+
+    ha_graded_pass appends every kept/dropped run on EVERY fixpoint pass,
+    so multi-pass runs inflate raw log counts; audits must count runs.
+    """
+    seen = {}
+    for rec in records:
+        seen.setdefault((rec[0], rec[1]), rec)
+    return list(seen.values())
+
+
 def proxy_touch(disp, d1):
     # inf marks a missing ball coordinate (reappearance), not a jump.
     return np.isfinite(disp) & (disp > TOUCH_DISP) & (d1 < TOUCH_D1)

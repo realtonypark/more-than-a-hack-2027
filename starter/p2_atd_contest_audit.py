@@ -16,26 +16,15 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
-from starter.p2_atd_track import proxy_touch, run_pr1_track  # noqa: E402
+from starter.p2_atd_track import (final_log_records, proxy_touch,  # noqa: E402
+                                   run_pr1_track)
 from starter.possession import PROV_ANCHOR, PROV_GAPFILL  # noqa: E402
-
-
-def _final(records):
-    """Deduplicate fixpoint-log records by (s, e), keeping first decision.
-
-    ha_graded_pass appends every kept/dropped run on EVERY fixpoint pass,
-    so multi-pass runs inflate raw log counts; audits must count runs.
-    """
-    seen = {}
-    for rec in records:
-        seen.setdefault((rec[0], rec[1]), rec)
-    return list(seen.values())
 
 
 def audit_a1(track):
     log, touch = track["log"], track["touch"]
     assert touch is not None
-    keeps, drops = _final(log["contest_keep"]), _final(log["contest_drop"])
+    keeps, drops = final_log_records(log["contest_keep"]), final_log_records(log["contest_drop"])
     kept_c = sum(1 for s, e, _, _ in keeps if touch[s:e].any())
     kept_u = len(keeps) - kept_c
     drop_c = sum(1 for s, e, _ in drops if touch[s:e].any())
@@ -51,7 +40,7 @@ def audit_a1(track):
 
 def audit_a2(track):
     log, prov = track["log"], track["prov"]
-    keeps = _final(log["contest_keep"])
+    keeps = final_log_records(log["contest_keep"])
     # Mirror production _gap_sourced exactly (independent reimplementation:
     # importing the predicate under test would make this audit vacuous).
     src = [bool(np.any(prov[s:e] == PROV_GAPFILL)
@@ -72,7 +61,7 @@ def audit_a5():
     for quorum in (False, True):
         track = run_pr1_track(use_graded=True, use_quorum=quorum)
         n_anchor = len(track["anchors"])
-        n_keep = len(_final(track["log"]["contest_keep"]))
+        n_keep = len(final_log_records(track["log"]["contest_keep"]))
         outs[quorum] = (n_anchor, n_keep)
         print("A5 quorum=%s anchors=%d contest-keeps=%d"
               % (quorum, n_anchor, n_keep))

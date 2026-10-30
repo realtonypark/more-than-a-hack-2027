@@ -174,6 +174,17 @@ GT-blind mechanism, gated by its own audit:
   ideas (evidence inverted or n=1 fits); threshold tuning of any
   constant (pre-reg freeze + EVALUATION.md smooth125 lesson).
 
+Post-proof review fixes (no shipped-behavior change; default re-measures
+0.6000/11): removed dead guarded_smooth/prune_episodes/close_d_flicker;
+Rule-R out-guard covers all tracked outs (min_len=1); wall spans merged
+on overlap before the invariant; reseed anchors carry origin offsets;
+audits corrected (hysteresis recheck, inclusive E5 end-frame, GAPFILL +
+fixpoint dedupe, legacy C0 margins, masked none-count, E3 non-throw
+filter, registered 250-450 spell band, TMPDIR jail, pre-fill D-share,
+finite-displacement proxy touch, one-sided C0 quorum-off arm). Residual:
+A6 in-half D 0.379 outside [0.15,0.30] (module track; band not widened
+without registration).
+
 Proof (public window, 17 spells): control 0.5241/12 -> triple stack
 0.6000/11 (macro 0.7028, 90% CI [0.3857, 0.7752] over 1000 draws;
 target sits at point estimate with zero margin and wide CI --

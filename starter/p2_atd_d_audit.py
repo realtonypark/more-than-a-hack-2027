@@ -18,7 +18,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "evaluation"))
-from starter.p2_atd_track import full_video_spells, run_pr1_track  # noqa: E402
+from starter.p2_atd_track import (final_log_records, full_video_spells,  # noqa: E402
+                                   run_pr1_track)
 from starter.possession import rle_runs  # noqa: E402
 import possession_metrics as pm  # noqa: E402
 
@@ -64,7 +65,8 @@ def audit_a4(mod_final, ctl_final):
 
 def audit_a6(track):
     final, log = track["final"], track["log"]
-    lens = sorted(e - s for s, e, _, _ in log["contest_keep"])
+    lens = sorted(e - s for s, e, _, _
+                  in final_log_records(log["contest_keep"]))
     bins = {"20-39": 0, "40-69": 0, "70-100": 0}
     for ln in lens:
         bins["20-39" if ln < 40 else "40-69" if ln < 70 else "70-100"] += 1
