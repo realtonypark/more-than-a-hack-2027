@@ -1,0 +1,34 @@
+PREREGISTRATION.md
+  h_05e5164a29872e 4-8,168-170,178
+starter/p2_atd_contest_audit.py
+  h_05e5164a29872e 23-34,38-42,54-60,75
+starter/p2_atd_d_audit.py
+  h_05e5164a29872e 81,83
+starter/p2_atd_track.py
+  h_05e5164a29872e 31-32,53-55,57-61
+starter/p2_label_experiments.py
+  h_05e5164a29872e 423-430
+starter/p4_kickoff_exp.py
+  h_05e5164a29872e 55-59
+starter/p4_restart_exp.py
+  h_05e5164a29872e 86,88-92,96,122
+starter/p5_atd_check.py
+  h_05e5164a29872e 45-46,121-122
+starter/possession.py
+  h_05e5164a29872e 477,923-940,1131-1133,1254,1260-1261,1278-1279,1289-1290,1296-1297,1323-1324,1442
+starter/quorum_audit.py
+  h_05e5164a29872e 79
+starter/quorum_matrix.py
+  h_05e5164a29872e 95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b554ddf2f0b57254de6eef8cf3e848bd15252253",
+  "prompts": {},
+  "humans": {
+    "h_05e5164a29872e": {
+      "author": "realtonypark <realtonypark@gmail.com>"
+    }
+  }
+}
