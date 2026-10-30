@@ -76,3 +76,20 @@ droop force-D, fitted pressure weights.
 
 Full-match expectation if all gates pass: ~0.45-0.60 (judge, honest,
 overlapping not additive). 0.6+ is reachable, not banked.
+
+## Bundle-day log (2026-10-30, workbox)
+
+- T-ATD-0: bundle intact (199319f, halves match, ball-NaN 0.431, speeds ok).
+- T-ATD-1: v_lo=0.611, v_hi=1.314 RE-REGISTERED (p15-nan/p40-all). Derived
+  triggers: 23 spans -> FALSIFIED (<30). K1 morphology stands; P5 detectors
+  stay HELD. (INIT 1.0/2.0 gave 55 spans IN-band but INIT values are
+  never-shipped start points.) T-ATD-4 trigger H2-head D 0.020, consistent.
+- T-ATD-5: long-ST recall 0.13 -> M8 eligible but DEFERRED (its constants
+  were judged ungrounded; revisit only on scored long-D misses).
+- P1: A1 single-team 1069f (0.9% of vis); A2 C0=T3=26326 anchors, 0 flips
+  -> SHIP (behavior-neutral correctness). Matrix: 328 spells in-band.
+- P2: A1 PROXY-touch 0.42:1 inconclusive (proxy only, not a kill); A2
+  38/88 gap-sourced <90% -> E1 FALLBACK (d_pass + flat H/A @100) wired
+  into run_pipeline, contest rescue shelved. A3 kickoff D 0.241 confirms
+  the kickoff miss (P4's target; P4 E1/E2 pending). d_audit X-code bug
+  (KeyError on valid out-of-half X) fixed.

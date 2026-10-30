@@ -911,7 +911,13 @@ def run_pipeline(raw_path, meta_path, halves, n, pitch, walls=None):
     anchors = np.flatnonzero(gate)
     team, prov = interpolate_with_prov(n, anchors, letter[anchors], walls,
                                        halves)
-    team = graded_prune(team, prov=prov)  # P2 E6, exactly as measured
+    # P2 E1 fallback (A2 fired: 38/88 keeps gap-sourced < 90% on the PR1
+    # track): D-pass + flat H/A @100. D-pass is vacuous on the team stage
+    # (no D runs yet); contest rescue stays out. E1 measured 0.5931 on
+    # label streams (above E6 0.5548); revisit rescue only on scored
+    # short-spell misses with a new pre-registered rule.
+    team, _ = d_pass_prune(team)
+    team = flat_prune(team, CONTEST_THR, "alive", classes=("H", "A"))
     voted = guarded_smooth(codes, walls, halves, W_G)
     # Combination rule (pre-registered here; design §1.6 left the pairing open):
     # local vote wins where it has votes; anchor-interpolation carries the long

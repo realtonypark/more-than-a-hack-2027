@@ -25,7 +25,7 @@ import possession_metrics as pm  # noqa: E402
 GT_CSV = os.path.join(ROOT, "evaluation", "gt",
                       "BAR-ATH_possession_gt_public.csv")
 KICKOFF = (110808, 113742)  # published H2-kickoff all-D region (video frames)
-CODE = {"H": 0, "A": 1, "D": 2}
+CODE = {"H": 0, "A": 1, "D": 2, "X": 3}  # X outside halves is valid output
 
 
 def to_codes(labels):
