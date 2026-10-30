@@ -100,3 +100,23 @@ overlapping not additive). 0.6+ is reachable, not banked.
   correction, not tuning): team-primary combination (team wins, walls
   stamp D, vote fills team-X holes), restoring PR1's proven
   architecture. P5's own note left the pairing direction open.
+- P4 merge (default-off) verified neutral: control rescore 0.5241.
+  P4 verdicts: E1 FAIL (trap fires 0x in halves) -> TRAP KILLED. E3 0/1
+  correctness -> RESTART KILLED (E4 throw-in proxies pass on n=5 but
+  measure decisiveness, not correctness, of the same unproven
+  mechanism). A3 kickoff D 0.241 stands as an open miss.
+- OUR MISS AUTOPSY (12 pred vs 17 GT): 5 true shorts missed
+  (G02/G09/G11/G12/G14), 2 swaps (G01/G12 wrong team), 4 boundary-short
+  longs (G00/G10/G13/G16 at 0.28-0.41). Walls innocent (0 cuts in 16/17).
+- P6 standalone: 0.2902/34 (fragments; touch uncalibrated, 1193 fires)
+  -> stays OUT, no merge. P3-C1: 0.5103/12 spell-neutral (macro cost
+  only) -> stays OUT. Stack remains 0.5241; gap to 0.6 is +0.076.
+- ANCHOR AUTOPSY: 0 opposite-team anchors across miss windows (P07:
+  127H/0A over 641f incl two true A spells; G01: 0H over 202f H).
+  Proximity lies for seconds; only a touch signal can fix it.
+- TOUCH-CHAIN (frozen before first touch-score): V_TOUCH=5.0 (|dv| m/s;
+  physics kick impulse; provider p995 4.81, 485 candidates), fallback
+  4.0 iff attributed<200 (starvation, GT-blind), R_TOUCH=2.0/DZ_R=2.0
+  (body scale), per-half chain, no wall reset (walls mask D anyway).
+  Ship rule: structure 250-450 spells + D-share sane + public improves
+  + flip spot-audit; CIs reported regardless.

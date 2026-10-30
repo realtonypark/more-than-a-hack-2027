@@ -37,6 +37,8 @@ sys.path.insert(0, ROOT)
 from games import GAME, GAMES, half_video_blocks, require, source_frames  # noqa: E402
 from starter.baseline import HOME, NOBODY, smooth, team_of_each_track  # noqa: E402
 from starter.load_smart_tagging import load as st_load  # noqa: E402
+from starter.touch_chain import (MIN_ATTRIBUTED, V_TOUCH,  # noqa: E402
+                                 V_TOUCH_FB, touch_chain)
 
 # --- PR1 frozen constants (unchanged) -------------------------------------
 # (M, G swept {1,2,3}x{25,50,100}; M3/G100 closest to ~300 spells.)
@@ -939,14 +941,31 @@ def morphology_walls(codes, halves):
     return walls
 
 
-def run_pipeline(raw_path, meta_path, halves, n, pitch, walls=None):
+def touch_team(raw_path, team_of_track, n, pitch, halves):
+    """Last-touch ownership team stage (--touch). Pre-registered; see
+    PREREGISTRATION.md. Structural fallback to V_TOUCH_FB on starvation."""
+    nx, ny = ball_track(raw_path, n)
+    team, info = touch_chain(raw_path, team_of_track, n, pitch, halves,
+                             nx * pitch[0], ny * pitch[1], V_TOUCH)
+    if info["attributed"] < MIN_ATTRIBUTED:
+        team, info = touch_chain(raw_path, team_of_track, n, pitch, halves,
+                                 nx * pitch[0], ny * pitch[1], V_TOUCH_FB)
+        info["fallback"] = True
+    print("touch: v={} candidates={} attributed={} vetoed={}{}".format(
+        info["v_touch"], info["candidates"], info["attributed"],
+        info["vetoed"], " FALLBACK" if info.get("fallback") else ""))
+    return team
+
+
+def run_pipeline(raw_path, meta_path, halves, n, pitch, walls=None,
+                 use_touch=False):
     """Full integrated stack -> (final labels, walls). No I/O.
 
-    walls=None derives K1 morphology walls from the scan's own codes (one
-    scan total). Stack: P1 quorum anchors -> interpolate (prov + walls) ->
-    P2 E6 graded prune, global (X-skip semantics make it wall-safe on the
-    team stage, where wall frames are X) -> P5 guarded smooth + combination
-    + wall asserts -> capped hold-fill per half.
+    walls=None derives K1 morphology walls from the scan's own codes.
+    Team stage: P1 quorum anchors -> interpolate (prov + walls) -> PR1
+    prune12 (FIX 2), or the last-touch ownership chain when use_touch
+    (--touch, pre-registered in PREREGISTRATION.md). Walls stamp D;
+    hold-fill per half.
     """
     codes, d1, margin, disp, qh, qa = scan(
         raw_path, team_of_each_track(meta_path), n, pitch)[:6]
@@ -963,6 +982,9 @@ def run_pipeline(raw_path, meta_path, halves, n, pitch, walls=None):
     anchors = np.flatnonzero(gate)
     team, prov = interpolate_with_prov(n, anchors, letter[anchors], walls,
                                        halves)
+    if use_touch:
+        team = touch_team(raw_path, team_of_each_track(meta_path), n,
+                          pitch, halves)
     # FIX 2 (bundle-day): PR1 prune12 + hold-fill. E1-flat100 and voted-fill
     # regressed to 0.3415/24 (PR1: 0.5103/12): flat100 was measured on label
     # streams (wrong population: smoothing artifacts), and voted-fill inserts
@@ -1215,6 +1237,8 @@ def main(argv=None):
                     help="P4 restart re-seed")
     ap.add_argument("--walls", action="store_true",
                     help="P5 trigger detectors (HELD pending T-ATD-1)")
+    ap.add_argument("--touch", action="store_true",
+                    help="last-touch ownership team stage (pre-registered)")
     args = ap.parse_args(argv)
     meta_path, raw_path = require(["atd_meta", "atd_raw"], GAME, None)
     n = source_frames("tactical", GAME)
@@ -1237,7 +1261,7 @@ def main(argv=None):
                                       pitch, st_windows)
             print("ST windows: {}".format(len(st_windows)))
         final, walls = run_pipeline(raw_path, meta_path, halves, n, pitch,
-                                    walls)
+                                    walls, use_touch=args.touch)
         n_d = sum(we - ws for ws, we, _ in walls)
         flags = {}
         for _, _, flag in walls:
