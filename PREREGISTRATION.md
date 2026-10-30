@@ -93,3 +93,10 @@ overlapping not additive). 0.6+ is reachable, not banked.
   into run_pipeline, contest rescue shelved. A3 kickoff D 0.241 confirms
   the kickoff miss (P4's target; P4 E1/E2 pending). d_audit X-code bug
   (KeyError on valid out-of-half X) fixed.
+- FIRST SCORE (vote-primary stack): public spellF1 0.3256, per-IoU
+  identical to smooth50 to 4 decimals, 97 graded-frame diffs. Diagnosis:
+  guarded +-50 votes nearly everywhere, so vote-primary combination
+  reproduces the smoother and interpolation never matters. FIX 1 (wiring
+  correction, not tuning): team-primary combination (team wins, walls
+  stamp D, vote fills team-X holes), restoring PR1's proven
+  architecture. P5's own note left the pairing direction open.

@@ -919,10 +919,15 @@ def run_pipeline(raw_path, meta_path, halves, n, pitch, walls=None):
     team, _ = d_pass_prune(team)
     team = flat_prune(team, CONTEST_THR, "alive", classes=("H", "A"))
     voted = guarded_smooth(codes, walls, halves, W_G)
-    # Combination rule (pre-registered here; design §1.6 left the pairing open):
-    # local vote wins where it has votes; anchor-interpolation carries the long
-    # ball gaps where the vote window is empty. Vote X + team X -> hold_fill.
-    final = np.where(voted != "X", voted, team)
+    # Combination rule (w3-int fix 1, bundle-day): TEAM wins where it has a
+    # team; walls stamp D; the guarded vote fills only team-X holes. The P5
+    # pairing (vote wins) collapsed the stack to smooth50 verbatim (first
+    # score 0.3256, per-IoU identical to 4 decimals, 97 graded diffs): a +-50
+    # vote has votes nearly everywhere, so interpolation never mattered. PR1's
+    # proven architecture is team-primary with D decided by walls/mask only.
+    final = np.where(team != "X", team, voted)
+    for ws, we, _ in walls:
+        final[ws:we] = "D"
     final = close_d_flicker(final, walls)
     d_pre = sum(min(we, hb + 1) - max(ws, ha)
                 for _, ha, hb in halves for ws, we, _ in walls
