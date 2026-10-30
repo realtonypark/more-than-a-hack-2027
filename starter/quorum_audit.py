@@ -50,7 +50,7 @@ def main():
     n = source_frames("tactical", GAME)
     codes, d1, margin, disp, qh, qa = scan(raw_path,
                                            team_of_each_track(meta_path), n,
-                                           GAMES[GAME]["pitch"])
+                                           GAMES[GAME]["pitch"])[:6]
     vis = codes != NOBODY
     dual = (qh >= Q_MIN) & (qa >= Q_MIN)
     graded = graded_mask(n)
