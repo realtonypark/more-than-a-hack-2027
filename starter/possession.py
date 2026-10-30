@@ -911,30 +911,23 @@ def run_pipeline(raw_path, meta_path, halves, n, pitch, walls=None):
     anchors = np.flatnonzero(gate)
     team, prov = interpolate_with_prov(n, anchors, letter[anchors], walls,
                                        halves)
-    # P2 E1 fallback (A2 fired: 38/88 keeps gap-sourced < 90% on the PR1
-    # track): D-pass + flat H/A @100. D-pass is vacuous on the team stage
-    # (no D runs yet); contest rescue stays out. E1 measured 0.5931 on
-    # label streams (above E6 0.5548); revisit rescue only on scored
-    # short-spell misses with a new pre-registered rule.
-    team, _ = d_pass_prune(team)
-    team = flat_prune(team, CONTEST_THR, "alive", classes=("H", "A"))
-    voted = guarded_smooth(codes, walls, halves, W_G)
-    # Combination rule (w3-int fix 1, bundle-day): TEAM wins where it has a
-    # team; walls stamp D; the guarded vote fills only team-X holes. The P5
-    # pairing (vote wins) collapsed the stack to smooth50 verbatim (first
-    # score 0.3256, per-IoU identical to 4 decimals, 97 graded diffs): a +-50
-    # vote has votes nearly everywhere, so interpolation never mattered. PR1's
-    # proven architecture is team-primary with D decided by walls/mask only.
-    final = np.where(team != "X", team, voted)
+    # FIX 2 (bundle-day): PR1 prune12 + hold-fill. E1-flat100 and voted-fill
+    # regressed to 0.3415/24 (PR1: 0.5103/12): flat100 was measured on label
+    # streams (wrong population: smoothing artifacts), and voted-fill inserts
+    # vote-majority runs into hold-filled X cores (exactly the uncertain
+    # regions). Team + walls->D + hold-fill; E1 and voted-fill stay out.
+    team = prune(team)
+    final = team
     for ws, we, _ in walls:
         final[ws:we] = "D"
-    final = close_d_flicker(final, walls)
     d_pre = sum(min(we, hb + 1) - max(ws, ha)
                 for _, ha, hb in halves for ws, we, _ in walls
                 if ws < hb + 1 and we > ha)
     assert_wall_invariants(final, walls, d_pre, halves)
     for _, a, b in halves:
-        final[a:b + 1] = hold_fill(final[a:b + 1], HEAD_CAP)
+        # Uncapped (PR1): the scorer back-fills leading X from first-known
+        # regardless, so HEAD_CAP only spends macroF1 for identical spells.
+        final[a:b + 1] = hold_fill(final[a:b + 1])
     assert_wall_invariants(final, walls, d_pre, halves)  # shipped artifact
     return final, walls
 
