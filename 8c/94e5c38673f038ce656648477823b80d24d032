@@ -1,0 +1,22 @@
+starter/p4_kickoff_exp.py
+  h_05e5164a29872e 1-94
+starter/p4_restart_exp.py
+  h_05e5164a29872e 1-237
+starter/possession.py
+  h_05e5164a29872e 19-23,28,54-67,131-137,171-178,196-197,202,204,209,213-220,233-236,240-243,910-911,919-920,952,987-1207,1209-1218,1223-1246,1250-1253
+starter/quorum_audit.py
+  h_05e5164a29872e 53
+starter/quorum_matrix.py
+  h_05e5164a29872e 51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8c94e5c38673f038ce656648477823b80d24d032",
+  "prompts": {},
+  "humans": {
+    "h_05e5164a29872e": {
+      "author": "realtonypark <realtonypark@gmail.com>"
+    }
+  }
+}
