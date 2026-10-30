@@ -1416,12 +1416,19 @@ def main(argv=None):
                     help="last-touch ownership team stage (pre-registered)")
     ap.add_argument("--e6", action="store_true",
                     help="P2 graded rescue instead of prune12 (gated)")
-    ap.add_argument("--outD", action="store_true",
+    ap.add_argument("--outD", dest="outD", action="store_true",
                     help="stamp tracked out-of-pitch spans D (Rule-D)")
-    ap.add_argument("--bridge", action="store_true",
+    ap.add_argument("--no-outD", dest="outD", action="store_false",
+                    help="ablation: disable Rule-D")
+    ap.add_argument("--bridge", dest="bridge", action="store_true",
                     help="bridge played-through morph walls (Rule-B)")
-    ap.add_argument("--refine", action="store_true",
+    ap.add_argument("--no-bridge", dest="bridge", action="store_false",
+                    help="ablation: disable Rule-B")
+    ap.add_argument("--refine", dest="refine", action="store_true",
                     help="desert-fill boundaries to vote crossover (Rule-R)")
+    ap.add_argument("--no-refine", dest="refine", action="store_false",
+                    help="ablation: disable Rule-R")
+    ap.set_defaults(outD=True, bridge=True, refine=True)
     args = ap.parse_args(argv)
     meta_path, raw_path = require(["atd_meta", "atd_raw"], GAME, None)
     n = source_frames("tactical", GAME)

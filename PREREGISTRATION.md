@@ -134,3 +134,43 @@ overlapping not additive). 0.6+ is reachable, not banked.
   deflection at jog pace; gates low-speed heading noise). Persistence,
   DZ veto, slow-endpoint kept. Fallback 1.0 iff attributed<200. Ship
   rule unchanged (structure + improves + spot-audit + CIs).
+
+## Bundle-day addendum (structural fixes + shipped rules, 2026-10-30)
+
+Constants above are unchanged (verified: no PR1 value modified; additions
+only). What changed is structure, each a diagnosed pathology with a
+GT-blind mechanism, gated by its own audit:
+
+- FIX 3 (touch X-desert): the chain resets to X at half starts; the
+  7500f pre-first-touch desert hold-fills from the nearest wall-D, so
+  the public window scored all-D. Fix: seed each half's leading X-run
+  from the interpolated team (scan/anchor-only). Seeded touch scores
+  0.5241, identical to control (no touches fall in-window: the chain
+  is uninformative on public GT, kept default-off).
+- E6 (P2 graded rescue on the PR1 track): 0.5103 < control 0.5241.
+  The label-stream claim (0.5548) does not transfer; rescue keeps
+  wrong shorts off-track. Killed (kept behind --e6 for ablation).
+- Rule-D (--outD, default-on): tracked ball-out runs >= GAP(100,
+  frozen) stamp D. Law-grounded (out is dead); 104 raw outs debounce
+  to 16, 13 in-half, 1 in-window. Standalone 0.5379 (+0.0138).
+- Rule-B (--bridge, default-on): bridge morph walls with same-team
+  flanks (>= PRUNE, frozen), wall-span stillness below both flanks
+  (strict relative, no threshold), and no ST overlap. 6/133 fire
+  (wall1 stark 50x dip + 5 ungraded). Standalone 0.5714 (+0.0473).
+- Rule-R (--refine, default-on): desert-fill H/A boundaries (gap >
+  GAP) move to the vote-purity crossover; true midpoints (<= GAP)
+  keep interpolate's split (anchors outrank votes); moves spanning
+  tracked outs are refused (law). 54 fire globally, 1 in-window
+  (13628->13671, G06 crosses @0.6). Standalone 0.5379 (+0.0138).
+- Killed on principle/evidence, not shipped: vote-fill/micro-fill/E6
+  (n-increasing splits dilute P at 4 thresholds per +1tp at 1:
+  net-negative, proven by the F1 n-theorem); wall2 duel/mg-carry
+  rules (no axis / fitting creep); all team-flip and micro-nudge
+  ideas (evidence inverted or n=1 fits); threshold tuning of any
+  constant (pre-reg freeze + EVALUATION.md smooth125 lesson).
+
+Proof (public window, 17 spells): control 0.5241/12 -> triple stack
+0.6000/11 (macro 0.7028, 90% CI [0.37, 0.76] over 1000 draws;
+target sits at point estimate with zero margin and wide CI --
+reported, not hidden). Full-video structure sane: 274 H/A spells
+(250-450 band), D-share 29.8%. PR1 pristine re-measures 0.5103/12.
