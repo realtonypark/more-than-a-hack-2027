@@ -1,0 +1,18 @@
+PREREGISTRATION.md
+  h_05e5164a29872e 79-95
+starter/p2_atd_d_audit.py
+  h_05e5164a29872e 28
+starter/possession.py
+  h_05e5164a29872e 914-920
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e26c12840e41c6a5c1683fbb31f323df6ca811aa",
+  "prompts": {},
+  "humans": {
+    "h_05e5164a29872e": {
+      "author": "realtonypark <realtonypark@gmail.com>"
+    }
+  }
+}
