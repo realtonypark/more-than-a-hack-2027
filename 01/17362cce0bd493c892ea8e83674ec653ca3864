@@ -1,0 +1,20 @@
+PREREGISTRATION.md
+  h_05e5164a29872e 177-187
+starter/p2_atd_contest_audit.py
+  h_05e5164a29872e 19-20,27,43,64
+starter/p2_atd_d_audit.py
+  h_05e5164a29872e 21-22,68-69
+starter/p2_atd_track.py
+  h_05e5164a29872e 30-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0117362cce0bd493c892ea8e83674ec653ca3864",
+  "prompts": {},
+  "humans": {
+    "h_05e5164a29872e": {
+      "author": "realtonypark <realtonypark@gmail.com>"
+    }
+  }
+}
