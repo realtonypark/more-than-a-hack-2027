@@ -1,0 +1,14 @@
+starter/possession.py
+  h_05e5164a29872e 914-920,928-930
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c000a7df416bc1501978e129b0f60a00fcf6c8aa",
+  "prompts": {},
+  "humans": {
+    "h_05e5164a29872e": {
+      "author": "realtonypark <realtonypark@gmail.com>"
+    }
+  }
+}
