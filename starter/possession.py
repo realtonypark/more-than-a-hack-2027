@@ -958,15 +958,34 @@ def touch_team(raw_path, team_of_track, n, pitch, halves):
     return team
 
 
+def seed_chain(chain, prior, halves):
+    """Seed each half's leading chain-X run from the interpolated team.
+
+    FIX 3 (bundle-day, structural, GT-blind): the chain resets to X at
+    half starts, so frames before the first attributed touch form an
+    X-desert that hold-fill back-fills from the nearest wall-D (the
+    public window scored all-D). The prior is scan/anchor-only.
+    """
+    out = chain.copy()
+    for _, ha, hb in halves:
+        f = ha
+        while f <= hb and out[f] == "X":
+            if prior[f] in ("H", "A"):
+                out[f] = prior[f]
+            f += 1
+    return out
+
+
 def run_pipeline(raw_path, meta_path, halves, n, pitch, walls=None,
-                 use_touch=False):
+                 use_touch=False, use_e6=False):
     """Full integrated stack -> (final labels, walls). No I/O.
 
     walls=None derives K1 morphology walls from the scan's own codes.
     Team stage: P1 quorum anchors -> interpolate (prov + walls) -> PR1
     prune12 (FIX 2), or the last-touch ownership chain when use_touch
-    (--touch, pre-registered in PREREGISTRATION.md). Walls stamp D;
-    hold-fill per half.
+    (--touch, pre-registered in PREREGISTRATION.md). --e6 swaps prune12
+    for graded_prune with GAP provenance (P2 rescue, bundle-day gate).
+    Walls stamp D; hold-fill per half.
     """
     codes, d1, margin, disp, qh, qa = scan(
         raw_path, team_of_each_track(meta_path), n, pitch)[:6]
@@ -984,14 +1003,29 @@ def run_pipeline(raw_path, meta_path, halves, n, pitch, walls=None,
     team, prov = interpolate_with_prov(n, anchors, letter[anchors], walls,
                                        halves)
     if use_touch:
-        team = touch_team(raw_path, team_of_each_track(meta_path), n,
-                          pitch, halves)
+        chain = touch_team(raw_path, team_of_each_track(meta_path), n,
+                           pitch, halves)
+        team = seed_chain(chain, team, halves)
     # FIX 2 (bundle-day): PR1 prune12 + hold-fill. E1-flat100 and voted-fill
     # regressed to 0.3415/24 (PR1: 0.5103/12): flat100 was measured on label
     # streams (wrong population: smoothing artifacts), and voted-fill inserts
     # vote-majority runs into hold-filled X cores (exactly the uncertain
     # regions). Team + walls->D + hold-fill; E1 and voted-fill stay out.
-    team = prune(team)
+    if use_e6:
+        # Bundle-day gate: P2 graded rescue on the PR1 track. With the
+        # touch chain the interp provenance does not apply (None blocks
+        # GAP rescue, E4-style); the honest A/B is --e6 without --touch.
+        elog = {}
+        team = graded_prune(team, prov=None if use_touch else prov,
+                            log=elog)
+        print("e6: keeps={} drops={} d_dropped={} d_restored={} iters={}"
+              .format(len(elog.get("contest_keep", [])),
+                      len(elog.get("contest_drop", [])),
+                      len(elog.get("dropped_d_runs", [])),
+                      len(elog.get("d_restored", [])),
+                      elog.get("ha_iters", 0)))
+    else:
+        team = prune(team)
     final = team
     for ws, we, _ in walls:
         final[ws:we] = "D"
@@ -1240,6 +1274,8 @@ def main(argv=None):
                     help="P5 trigger detectors (HELD pending T-ATD-1)")
     ap.add_argument("--touch", action="store_true",
                     help="last-touch ownership team stage (pre-registered)")
+    ap.add_argument("--e6", action="store_true",
+                    help="P2 graded rescue instead of prune12 (gated)")
     args = ap.parse_args(argv)
     meta_path, raw_path = require(["atd_meta", "atd_raw"], GAME, None)
     n = source_frames("tactical", GAME)
@@ -1262,7 +1298,8 @@ def main(argv=None):
                                       pitch, st_windows)
             print("ST windows: {}".format(len(st_windows)))
         final, walls = run_pipeline(raw_path, meta_path, halves, n, pitch,
-                                    walls, use_touch=args.touch)
+                                    walls, use_touch=args.touch,
+                                    use_e6=args.e6)
         n_d = sum(we - ws for ws, we, _ in walls)
         flags = {}
         for _, _, flag in walls:
