@@ -120,3 +120,9 @@ overlapping not additive). 0.6+ is reachable, not banked.
   (body scale), per-half chain, no wall reset (walls mask D anyway).
   Ship rule: structure 250-450 spells + D-share sane + public improves
   + flip spot-audit; CIs reported regardless.
+- TOUCH FIX (detector noise-dominated; GT-blind): 1043 candidates but 39
+  attributed (3.7%) -> all-X chain -> 0.0000 debug run. Cause: |dv|
+  spikes are mostly tracking jitter (jumped-to position is far from
+  everyone). Fix, frozen before re-run: persistence confirmation (speed
+  must persist frame+1, V_PERSIST=0.5 round dichotomy; jitter reverts)
+  + slow-endpoint attribution (contact at low speed).
