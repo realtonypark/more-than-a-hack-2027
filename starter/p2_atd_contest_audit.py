@@ -20,13 +20,26 @@ from starter.p2_atd_track import proxy_touch, run_pr1_track  # noqa: E402
 from starter.possession import PROV_ANCHOR, PROV_GAPFILL  # noqa: E402
 
 
+def _final(records):
+    """Deduplicate fixpoint-log records by (s, e), keeping first decision.
+
+    ha_graded_pass appends every kept/dropped run on EVERY fixpoint pass,
+    so multi-pass runs inflate raw log counts; audits must count runs.
+    """
+    seen = {}
+    for rec in records:
+        seen.setdefault((rec[0], rec[1]), rec)
+    return list(seen.values())
+
+
 def audit_a1(track):
     log, touch = track["log"], track["touch"]
     assert touch is not None
-    kept_c = sum(1 for s, e, _, _ in log["contest_keep"] if touch[s:e].any())
-    kept_u = len(log["contest_keep"]) - kept_c
-    drop_c = sum(1 for s, e, _ in log["contest_drop"] if touch[s:e].any())
-    drop_u = len(log["contest_drop"]) - drop_c
+    keeps, drops = _final(log["contest_keep"]), _final(log["contest_drop"])
+    kept_c = sum(1 for s, e, _, _ in keeps if touch[s:e].any())
+    kept_u = len(keeps) - kept_c
+    drop_c = sum(1 for s, e, _ in drops if touch[s:e].any())
+    drop_u = len(drops) - drop_c
     print("A1 kept(conf/unconf)=%d/%d dropped(conf/unconf)=%d/%d"
           % (kept_c, kept_u, drop_c, drop_u))
     ratio = kept_c / float(kept_u) if kept_u else float("inf")
@@ -38,9 +51,13 @@ def audit_a1(track):
 
 def audit_a2(track):
     log, prov = track["log"], track["prov"]
-    keeps = log["contest_keep"]
-    src = [np.all((prov[s:e] == PROV_GAPFILL)
-                  | (prov[s:e] == PROV_ANCHOR)) for s, e, _, _ in keeps]
+    keeps = _final(log["contest_keep"])
+    # Mirror production _gap_sourced exactly (independent reimplementation:
+    # importing the predicate under test would make this audit vacuous).
+    src = [bool(np.any(prov[s:e] == PROV_GAPFILL)
+                and np.all((prov[s:e] == PROV_GAPFILL)
+                           | (prov[s:e] == PROV_ANCHOR)))
+           for s, e, _, _ in keeps]
     frac = float(np.mean(src)) if keeps else 1.0
     print("A2 gap-sourced keeps %d/%d (%.2f)"
           % (sum(src), len(keeps), frac))
@@ -55,7 +72,7 @@ def audit_a5():
     for quorum in (False, True):
         track = run_pr1_track(use_graded=True, use_quorum=quorum)
         n_anchor = len(track["anchors"])
-        n_keep = len(track["log"]["contest_keep"])
+        n_keep = len(_final(track["log"]["contest_keep"]))
         outs[quorum] = (n_anchor, n_keep)
         print("A5 quorum=%s anchors=%d contest-keeps=%d"
               % (quorum, n_anchor, n_keep))

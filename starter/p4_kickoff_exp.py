@@ -52,7 +52,11 @@ def main():
     print("dual/single/none: {} / {} / {} of {}".format(
         dual, single, none, int(np.sum(graded))))
     vis = codes != NOBODY
-    anchors = np.flatnonzero(vis & (margin > P.MARGIN) & (d1 < P.D1_MAX)
+    dual = (nh > 0) & (na > 0)
+    # Legacy C0 margins (cf. quorum_audit A1): scan emits -inf for
+    # single-team frames, which would void this PR1 diagnostic outright.
+    legacy_margin = np.where(vis & ~dual, np.inf, margin)
+    anchors = np.flatnonzero(vis & (legacy_margin > P.MARGIN) & (d1 < P.D1_MAX)
                              & (disp < P.DISP_TAU) & graded)
     sq = anchors[(nh[anchors] == 0) | (na[anchors] == 0)]
     print("PR1 anchors (graded): {}; single-team share: {:.3f}".format(

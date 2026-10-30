@@ -42,6 +42,8 @@ def derive_stillness_scale(mean_spd, nan_mask, halves):
         v_lo = float(np.percentile(pool_lo, 10))
         v_hi = float(np.percentile(pool_hi, 50))
         note = "FALLBACK p10/p50 (gap collapsed)"
+        if not v_lo < v_hi:
+            return None, None, "hysteresis collapsed (fallback invalid)"
     return v_lo, v_hi, note
 
 
@@ -116,8 +118,8 @@ def main():
     print("== T-ATD-4 H2-head check (E5; published boundary, not GT) ==")
     # T-ATD-4 exercises the integrated stack on trigger walls (w3-integrate).
     final, _ = P.run_pipeline(raw_path, meta_path, halves, n, pitch, walls)
-    head = final[110808:113742]
-    print("frames 110808-113741 D fraction: {:.3f} (ship iff >=0.80)".format(
+    head = final[110808:113743]
+    print("frames 110808-113742 D fraction: {:.3f} (ship iff >=0.80)".format(
         float(np.mean(head == "D"))))
 
     print("== T-ATD-5 long-D coverage (M8 un-bench gate) ==")

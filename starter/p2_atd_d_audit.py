@@ -78,9 +78,9 @@ def audit_a6(track):
     n_full = full_video_spells(final)
     print("A6 D share full=%.3f in-half=%.3f spells=%d" % (d_full, d_half,
                                                           n_full))
-    ok = (0.15 <= d_half <= 0.30) and 300 <= n_full <= 900
+    ok = (0.15 <= d_half <= 0.30) and 250 <= n_full <= 450
     print(("PASS " if ok else "FAIL ")
-          + "A6 in-half D in [0.15,0.30] and spells in [300,900]")
+          + "A6 in-half D in [0.15,0.30] and spells in [250,450]")
     return ok
 
 

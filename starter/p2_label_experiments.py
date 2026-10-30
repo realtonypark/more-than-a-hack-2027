@@ -420,8 +420,14 @@ def main(argv=None):
     ap.add_argument("--bootstrap", type=int, default=1000)
     args = ap.parse_args(argv)
     out_dir = os.path.realpath(args.out_dir)
-    roots = {os.path.realpath(os.environ.get("TMPDIR", "/tmp")),
-             os.path.realpath("/tmp")}
+    roots = {os.path.realpath("/tmp")}
+    tmpdir = os.environ.get("TMPDIR")
+    if tmpdir:
+        trusted = os.path.realpath(tmpdir)
+        # A broad TMPDIR ("/", a repo checkout) must not widen the jail.
+        if trusted == roots.copy().pop() or trusted.startswith(
+                os.path.realpath("/tmp") + os.sep):
+            roots.add(trusted)
     assert any(out_dir == r or out_dir.startswith(r + os.sep) for r in roots), \
         "out-dir must be under /tmp, got %s" % out_dir
     os.makedirs(out_dir, exist_ok=True)

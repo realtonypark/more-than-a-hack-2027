@@ -92,7 +92,7 @@ def main():
               .format(key, len(anchors), len(durs),
                       np.percentile(arr, 50), np.percentile(arr, 10),
                       np.percentile(arr, 90),
-                      np.mean(final == "D"),
+                      np.mean(~alive),
                       np.mean(prune(interpolate(
                           n, anchors, letter[anchors])) == "X")))
     print("D-share must be IDENTICAL across variants (shared mask); any drift "

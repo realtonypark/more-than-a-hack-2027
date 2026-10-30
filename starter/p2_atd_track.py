@@ -28,7 +28,8 @@ TOUCH_DISP, TOUCH_D1 = 0.5, 1.5
 
 
 def proxy_touch(disp, d1):
-    return (disp > TOUCH_DISP) & (d1 < TOUCH_D1)
+    # inf marks a missing ball coordinate (reappearance), not a jump.
+    return np.isfinite(disp) & (disp > TOUCH_DISP) & (d1 < TOUCH_D1)
 
 
 def quorum_mirror(margin, vis):
@@ -44,15 +45,20 @@ def run_pr1_track(use_graded=True, use_quorum=False, want_touch=False):
     touch, log). use_graded=False runs the frozen prune() control."""
     meta_path, raw_path = require(["atd_meta", "atd_raw"], GAME, None)
     n = source_frames("tactical", GAME)
-    # Merged scan returns qh/qa too (P1); the -inf margin already excludes
-    # single-team frames from the gate below, so no dual predicate is needed.
     codes, d1, margin, disp = scan(raw_path, team_of_each_track(meta_path),
                                    n, GAMES[GAME]["pitch"])[:4]
     vis = codes != NOBODY
     letter = np.where(codes == HOME, "H", np.where(vis, "A", "X"))
-    gate = vis & (margin > MARGIN) & (d1 < D1_MAX) & (disp < DISP_TAU)
     if use_quorum:
+        # Merged scan returns qh/qa too (P1); the -inf margin already
+        # excludes single-team frames, so no dual predicate is needed.
+        gate = vis & (margin > MARGIN) & (d1 < D1_MAX) & (disp < DISP_TAU)
         gate = gate & quorum_mirror(margin, vis)
+    else:
+        # C0 control: single-team frames (-inf) approved one-sided again,
+        # or the off arm is identical to the on arm and A5 is vacuous.
+        one_sided = np.where(np.isneginf(margin), np.inf, margin)
+        gate = vis & (one_sided > MARGIN) & (d1 < D1_MAX) & (disp < DISP_TAU)
     anchors = np.flatnonzero(gate)
     team, prov = interpolate_with_prov(n, anchors, letter[anchors])
     log = {}

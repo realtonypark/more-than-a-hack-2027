@@ -107,11 +107,6 @@ T_CONJ = 50        # frames (2s); conjuncts within this pair into one D onset
 D_MAX_SPAN = 1500  # frames (60s); span cap adopted from d-H3 (no-offset case)
 BLINK_MERGE = 6    # frames; merge triggered spans closer than this (tracker blink)
 D_MIN_KEEP = 12    # frames; reuse frozen PRUNE: spans below this flag shortD, kept
-D_CLOSE = 12       # frames; H/A flicker inside firm D filled by morphological close
-PRUNE_INPLAY = 20  # frames (0.8s); literature sub-second chain filter, below the
-# ... ~100f erasure floor so P10/P12-class (19f/33f) short spells can survive.
-W_G = 50           # guarded vote half-window; conservative half of the 90-125
-# ... plateau (w1-postproc); guarded removes the erasure that forced wide windows.
 HEAD_CAP = GAP // 2  # 50f; g-H5(iii) back-fill cap, frozen PR1 geometry
 ST_WIN_BACK = 75   # ST candidate window [start-3s, end+1s]; ST ~1s accuracy,
 ST_WIN_FWD = 25    # asymmetric because a restart marks the END of dead ball.
@@ -479,7 +474,7 @@ def interpolate(n, anchors, teams, prov=None, walls=None, halves=None):
     PROV_EDGE / PROV_ANCHOR; labels are identical with or without it.
     walls (P5): None -> PR1 path bit-identical (+ empty-anchor guard);
     with walls, paint ranges intersect episodes and wall frames stay X
-    (guarded_smooth stamps them D).
+    (run_pipeline stamps them D after pruning).
     """
     out = np.full(n, "X", dtype="<U1")
     if prov is not None:
@@ -814,63 +809,6 @@ def graded_prune(out, prov=None, touch=None, confirmed_d=None, log=None,
     return work
 
 
-def prune_episodes(out, walls, halves, thresh=PRUNE_INPLAY):
-    """Separated prune: each episode pruned independently, walls never crossed.
-    In-play H/A runs < thresh merge to the EPISODE majority. (The P2/M1
-    differing-flank exemption plugs in here at stack time; P5 ships the shape.)
-    """
-    for es, ee in episodes_from_walls(len(out), walls, halves):
-        _prune_once(out[es:ee], thresh)
-    return out
-
-
-def guarded_smooth(codes, walls, halves, window=W_G):
-    """Guarded vote: D stamped on walls; H/A majority inside episodes only.
-
-    Window vote counts H/A codes only (NOBODY excluded, never counted as D);
-    ties keep the CENTER label (kills ties-go-home bias); windows with zero
-    H/A votes yield X. Outside halves -> X (ungraded passthrough). ST touches
-    nothing here: inputs are ATD labels + walls (d-H5 audit point).
-    """
-    n = len(codes)
-    out = np.full(n, "X", dtype="<U1")
-    for ws, we, _ in walls:
-        out[ws:we] = "D"
-    for es, ee in episodes_from_walls(n, walls, halves):
-        seg = codes[es:ee]
-        home = np.concatenate(([0], np.cumsum(seg == HOME)))
-        away = np.concatenate(([0], np.cumsum((seg != HOME) & (seg != NOBODY))))
-        idx = np.arange(ee - es)
-        lo = np.maximum(0, idx - window)
-        hi = np.minimum(ee - es, idx + window + 1)
-        h = home[hi] - home[lo]
-        a = away[hi] - away[lo]
-        lab = np.full(ee - es, "X", dtype="<U1")
-        center_h = seg == HOME
-        center_a = (seg != HOME) & (seg != NOBODY)
-        win_h = (h > a) | ((h == a) & (h + a > 0) & center_h)
-        win_a = (a > h) | ((h == a) & (h + a > 0) & center_a)
-        # h==a ties with a NOBODY center stay X (no evidence either way).
-        lab[win_h] = "H"
-        lab[win_a] = "A"
-        out[es:ee] = lab
-    return out
-
-
-def close_d_flicker(labels, walls, width=D_CLOSE):
-    """Fill H/A runs <= width inside walls with D; walls never move.
-
-    Idempotent safeguard in P5-alone (walls stamp D wholesale); at stack time
-    it also repairs any H/A P4's restart retype bleeds into firm spans.
-    """
-    for ws, we, _ in walls:
-        seg = labels[ws:we]
-        for rs, re in _nan_runs((seg == "H") | (seg == "A")):
-            if re - rs <= width:
-                seg[rs:re] = "D"
-    return labels
-
-
 def assert_wall_invariants(final, walls, d_pre_halves, halves):
     """INV-1/INV-2 hard asserts (bug = stop); INV-3 shrink hard, growth soft.
 
@@ -980,6 +918,24 @@ def out_spans(nx, ny, halves, min_len=GAP):
             if ce - cs >= min_len:
                 spans.append((cs, ce, "outD"))
     return spans
+
+
+def merge_wall_intervals(walls):
+    """Union overlapping/adjacent wall spans into disjoint intervals.
+
+    Exact-tuple dedup misses intersections: an outD span overlapping a
+    morphology wall would double-count d_pre (INV-3 false erasure) and
+    inflate the reported span count. Mixed flags join with '+'.
+    """
+    merged = []
+    for ws, we, flag in sorted(walls):
+        if merged and ws <= merged[-1][1]:
+            ps, pe, pf = merged[-1]
+            nf = pf if pf == flag else "+".join(sorted({pf, flag}))
+            merged[-1] = (ps, max(pe, we), nf)
+        else:
+            merged.append((ws, we, flag))
+    return merged
 
 
 def bridge_candidates(walls, final, frac_slow, st_windows):
@@ -1172,7 +1128,9 @@ def run_pipeline(raw_path, meta_path, halves, n, pitch, walls=None,
     if use_refine:
         nx, ny = ball_track(raw_path, n)
         out_mask = np.zeros(n, dtype=bool)
-        for os_, oe, _ in out_spans(nx, ny, halves):
+        # Guard (unlike the --outD stamp) covers every tracked out frame:
+        # a short out is still a dead ball that must never be painted H/A.
+        for os_, oe, _ in out_spans(nx, ny, halves, min_len=1):
             out_mask[os_:oe] = True
         final, moves = refine_boundaries(final, letter, gate, walls, halves,
                                          out_mask)
@@ -1293,12 +1251,14 @@ def slot_geometry(raw_path, wanted, team_of_track, pitch):
 
 
 def reseed_anchors(d1, letter, quorum, bx, by, tracked, gaps, pitch,
-                   raw_path=None, team_of_track=None):
+                   raw_path=None, team_of_track=None, out_origin=None):
     """Re-seed anchors after D gaps: PZ-confirmed K-runs, else cluster fallback.
 
     gaps = [(gap_start, offset)]. Returns (frames, teams, abstains); abstains
     are [offset, offset+ABSTAIN_LEN) X windows for dead heats. raw_path None
     (unit path) skips the fallback geometry pass, so no-K-run gaps abstain.
+    out_origin, when given a list, collects each emitted anchor's source
+    gap offset in frame order (audit attribution; no behavior change).
     """
     n = len(d1)
     live = (letter == "H") | (letter == "A")
@@ -1315,6 +1275,8 @@ def reseed_anchors(d1, letter, quorum, bx, by, tracked, gaps, pitch,
         if run >= 0:
             frames.append(run)
             teams.append(letter[run])
+            if out_origin is not None:
+                out_origin.append(o)
         else:
             need_fb.append((gs, o))
     if need_fb and raw_path is not None:
@@ -1324,13 +1286,15 @@ def reseed_anchors(d1, letter, quorum, bx, by, tracked, gaps, pitch,
         geo = slot_geometry(raw_path, wanted, team_of_track, pitch)
         for gs, o in need_fb:
             frames, teams, abstains = _fallback(
-                gs, o, bx, by, tracked, geo, pitch, frames, teams, abstains)
+                gs, o, bx, by, tracked, geo, pitch, frames, teams, abstains,
+                out_origin)
     else:
         abstains += [(o, min(o + ABSTAIN_LEN, n)) for _, o in need_fb]
     return frames, teams, abstains
 
 
-def _fallback(gs, o, bx, by, tracked, geo, pitch, frames, teams, abstains):
+def _fallback(gs, o, bx, by, tracked, geo, pitch, frames, teams, abstains,
+            out_origin=None):
     """Cluster fallback for one gap: append anchor or abstain, return all three."""
     n = len(bx)
     lo = max(0, gs - RESTART_LOOKBACK)
@@ -1356,6 +1320,8 @@ def _fallback(gs, o, bx, by, tracked, geo, pitch, frames, teams, abstains):
             else "A" if 1 - share_h >= FALLBACK_QUORUM else None)
     if team is None:
         return frames, teams, abstains + [(o, min(o + ABSTAIN_LEN, n))]
+    if out_origin is not None:
+        out_origin.append(o)
     return frames + [pick], teams + [team], abstains
 
 
@@ -1473,9 +1439,7 @@ def main(argv=None):
                     scan(raw_path, team_of_track, n, pitch)[0], halves)
             if args.outD:
                 extra = out_spans(nx, ny, halves)
-                have = set((w[0], w[1]) for w in walls)
-                walls = walls + [w for w in extra
-                                 if (w[0], w[1]) not in have]
+                walls = merge_wall_intervals(walls + extra)
                 print("outD: adding {} spans {}".format(
                     len(extra), [(a, b) for a, b, _ in extra]))
         final, walls = run_pipeline(raw_path, meta_path, halves, n, pitch,

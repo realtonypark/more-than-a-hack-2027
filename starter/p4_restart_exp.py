@@ -83,15 +83,17 @@ def main():
     quorum = (nh > 0) & (na > 0)
     live = (letter == "H") | (letter == "A")
     pz = live & quorum & (d1 < P.RPZ)
+    origin = []
     rfr, rtm, abst = P.reseed_anchors(d1, letter, quorum, bx, by, tracked, gaps,
-                                     pitch, raw_path, team_of_track)
-    # Per-gap attribution: abstains match offsets exactly; anchors take the
-    # nearest preceding offset (windows can overlap when D-spans sit <75f apart).
+                                     pitch, raw_path, team_of_track,
+                                     out_origin=origin)
+    # Per-gap attribution: abstains match offsets exactly; anchors carry
+    # their originating gap offset (nearest-preceding misattributes when
+    # D-spans sit <75f apart and restart windows overlap).
     team_of, kind_of = {}, {}
     for s, _ in abst:
         team_of[s], kind_of[s] = "X", "x"
-    for f, t in zip(rfr, rtm):
-        o = max(x for x in offs if x <= f)
+    for f, t, o in zip(rfr, rtm, origin):
         is_pz = bool(pz[f:f + P.K_RESEED].all()
                      and (letter[f:f + P.K_RESEED] == t).all())
         team_of[o], kind_of[o] = t, ("pz" if is_pz else "fb")
@@ -117,7 +119,7 @@ def main():
         return rows
 
     rows = match()
-    agree = [r for r in rows if r[0] and r[1] in ("H", "A")]
+    agree = [r for r in rows if r[0] and r[1] in ("H", "A") and not r[3]]
     hits = sum(1 for r in agree if r[0] == r[1])
     print("== A3/E3 agreement (non-throw-in, matched) ==")
     print("matched {}/{} set pieces; agreement {}/{} = {:.3f}".format(

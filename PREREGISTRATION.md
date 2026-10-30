@@ -1,8 +1,11 @@
 # Pre-registration: w3-integrate (frozen before the bundle lands)
 
 Branch `w3-integrate` off PR1 base `64244c2`. Stack: P1 two-sided quorum
-anchors → interpolate (provenance + walls) → P2 E6 graded prune → P5
-guarded smooth + combination + wall asserts → capped hold-fill per half.
+anchors → interpolate (provenance + walls) → PR1 prune12 → walls stamp D
+→ uncapped hold-fill per half → Rule-D/B/R. [Corrected 2026-10-30: E6
+killed (0.5103), guarded smooth removed as dead, hold-fill uncapped per
+FIX 2 (HEAD_CAP spends macroF1 for identical spells); frozen original in
+git history, kill log in the addendum below.]
 Default walls are K1 morphology; `--walls` selects the HELD trigger path.
 
 Rule: no constant below changes after the first scored ATD run except
@@ -162,7 +165,9 @@ GT-blind mechanism, gated by its own audit:
   keep interpolate's split (anchors outrank votes); moves spanning
   tracked outs are refused (law). 54 fire globally, 1 in-window
   (13628->13671, G06 crosses @0.6). Standalone 0.5379 (+0.0138).
-- Killed on principle/evidence, not shipped: vote-fill/micro-fill/E6
+- Killed on principle/evidence, not shipped: guarded_smooth /
+  prune_episodes / close_d_flicker removed as dead (no callers);
+  vote-fill/micro-fill/E6
   (n-increasing splits dilute P at 4 thresholds per +1tp at 1:
   net-negative, proven by the F1 n-theorem); wall2 duel/mg-carry
   rules (no axis / fitting creep); all team-flip and micro-nudge
@@ -170,7 +175,7 @@ GT-blind mechanism, gated by its own audit:
   constant (pre-reg freeze + EVALUATION.md smooth125 lesson).
 
 Proof (public window, 17 spells): control 0.5241/12 -> triple stack
-0.6000/11 (macro 0.7028, 90% CI [0.37, 0.76] over 1000 draws;
+0.6000/11 (macro 0.7028, 90% CI [0.3857, 0.7752] over 1000 draws;
 target sits at point estimate with zero margin and wide CI --
 reported, not hidden). Full-video structure sane: 274 H/A spells
 (250-450 band), D-share 29.8%. PR1 pristine re-measures 0.5103/12.

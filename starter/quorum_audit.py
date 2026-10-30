@@ -76,7 +76,7 @@ def main():
                       int(np.sum(d)),
                       int(np.sum(vis_m & (qh_m > 0) & (qa_m == 0))),
                       int(np.sum(vis_m & (qa_m > 0) & (qh_m == 0))),
-                      int(np.sum(~vis_m))))
+                      int(np.sum(m & ~vis))))
     fin = margin[np.isfinite(margin)]
     print(" margin: finite={} (-inf mass={} = single-team {:.3f} of vis)"
           .format(len(fin), int(np.sum(np.isneginf(margin))),
