@@ -1,0 +1,18 @@
+PREREGISTRATION.md
+  h_05e5164a29872e 103-122
+starter/possession.py
+  h_05e5164a29872e 40-41,944-961,964-968,985-987,1240-1241,1264
+starter/touch_chain.py
+  h_05e5164a29872e 1-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6e7873160943cbe2cc843bec84ea0afc5017e1c8",
+  "prompts": {},
+  "humans": {
+    "h_05e5164a29872e": {
+      "author": "realtonypark <realtonypark@gmail.com>"
+    }
+  }
+}
