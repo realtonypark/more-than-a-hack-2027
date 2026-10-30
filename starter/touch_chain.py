@@ -76,7 +76,8 @@ def touch_chain(raw_path, team_of_track, n, pitch, halves, bx, by,
     # (kicks leave fast, traps arrive fast); the jumped-to frame has
     # already left the feet. Ball pos comes from the meter arrays.
     want = {}
-    for f in touch_candidates(bx, by, v_touch).tolist():
+    cands = touch_candidates(bx, by, v_touch).tolist()
+    for f in cands:
         fs = f - 1 if v[f - 1] <= v[f] else f
         want.setdefault(fs, []).append(f)
     touches = {}
@@ -117,5 +118,5 @@ def touch_chain(raw_path, team_of_track, n, pitch, halves, bx, by,
             if f in touches:
                 owner = touches[f]
             own[f] = owner
-    return own, {"candidates": len(cand), "attributed": len(touches),
+    return own, {"candidates": len(cands), "attributed": len(touches),
                  "vetoed": vetoed, "v_touch": v_touch}
