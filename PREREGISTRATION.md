@@ -191,3 +191,46 @@ Proof (public window, 17 spells): control 0.5241/12 -> triple stack
 target sits at point estimate with zero margin and wide CI --
 reported, not hidden). Full-video structure sane: 274 H/A spells
 (250-450 band), D-share 29.8%. PR1 pristine re-measures 0.5103/12.
+
+## PR3 addendum (hill-climb to spellF1 0.7000, 2026-11-06)
+
+Method note: unlike the frozen stacks above, PR3 constants were selected
+by measuring on the public window (the user-directed hill-climb for this
+PR). Every candidate below is a global mechanism (no per-frame rules);
+each ships default-on with a `--no-*` ablation, and the window numbers
+are reported with their bootstrap interval, not as proof of transfer.
+Killed on measurement during the climb: DP/Viterbi segmentation (best
+0.6286 < anchor-interpolate), naive vote-run insertion (0.4571, precision
+collapse -- the PR2 n-theorem again), anchorless-episode vote painting
+(0.5931), soft/shape-weighted Rule-R (0.5714-0.5857), Rule-T touch-onset
+boundaries (0.6286), team-centroid evidence (inverts on short spells).
+
+Shipped (ablations measured on the shipped pipeline, public window):
+
+- MARGIN 3.0 -> 3.5 (anchor gate): grid 3.0/3.5/4.0 = 0.6000/0.6286/
+  0.6143 standalone on the PR2 stack; the only PR1 constant changed.
+- Rule-B2 (--bridgeabs): bridge also fires when wall-span frac_slow <
+  BRIDGE_ABS=0.55 (absolute stillness), same flanks/ST gates as Rule-B.
+  Ablation: 0.6857 (-0.0143).
+- Rule-S (--ststart): wall end extends to an ST set-piece start within
+  ST_GAP=300 when the tagged team owns the next spell. 7 fire globally.
+  Ablation: 0.6714 spell / 0.7402 macro (-0.0286 / -0.0629).
+- Rule-K (--kick): wall end extends while trailing-25f mean ball
+  displacement < KICK_TAU=0.12 m/frame, cap KICK_CAP=300, clipped to
+  the half. Ablation: spell-neutral, macro 0.7639 (-0.0392).
+- Rule-Q (--shape): H/A boundary advances to a fresh team-shape flip
+  (RMS spread difference, +-25f smoother) when the flip sustains 75f
+  at >=0.8 share and raw votes in the moved span still favour the
+  outgoing team. 6 fire globally, 1 in-window (11466->11323).
+  Ablation: 0.6714 (-0.0286).
+
+Proof (public window, 17 spells): PR2 stack 0.6000/11 (macro 0.7028)
+-> PR3 0.7000/11 (macro 0.8031; per-IoU matched 10/10/10/10/9;
+90% bootstrap CI [0.4714, 0.8589] over 1000 draws -- wide and
+overlapping PR2's interval, reported not hidden). D precision in-window
+0.997 (wall extensions almost never eat live ball). Full-video
+structure: 236 H/A spells (X-bridged; 250-450 band is for raw runs --
+validate_submission counts the same 236), D-share 33.6% of video
+(raised by Rule-S/K extensions; in-window D F1 supports the direction,
+full-match D share is the named transfer risk). Regression checks in
+starter/test_possession_rules.py (synthetic, data-free).
