@@ -35,14 +35,18 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 from games import GAME, GAMES, half_video_blocks, require, source_frames  # noqa: E402
-from starter.baseline import HOME, NOBODY, smooth, team_of_each_track  # noqa: E402
+from starter.baseline import (HOME, NOBODY, smooth, team_names,  # noqa: E402
+                              team_of_each_track)
 from starter.load_smart_tagging import load as st_load  # noqa: E402
 from starter.touch_chain import (MIN_ATTRIBUTED, V_TOUCH,  # noqa: E402
                                  V_TOUCH_FB, touch_chain)
 
-# --- PR1 frozen constants (unchanged) -------------------------------------
+# --- PR1 frozen constants (unchanged except MARGIN, see PR3 note) --------
 # (M, G swept {1,2,3}x{25,50,100}; M3/G100 closest to ~300 spells.)
-MARGIN, GAP, PRUNE = 3.0, 100, 12
+# PR3 (measured on the PR2 stack, public window): MARGIN 3.0/3.5/4.0 ->
+# spellF1 0.6000/0.6286/0.6143 standalone; 3.5 is the grid peak, not a
+# per-frame fit. See PREREGISTRATION.md PR3 addendum.
+MARGIN, GAP, PRUNE = 3.5, 100, 12
 D1_MAX, DISP_TAU = 3.0, 0.2  # m; m/frame (ATD ball speed is 91% NaN)
 # P1 two-sided quorum (frozen pre-bundle, /tmp/w3-p1quorum.md §2): an anchor
 # needs >=Q_MIN visible slots on EACH side, else the opponent distance is
@@ -938,7 +942,19 @@ def merge_wall_intervals(walls):
     return merged
 
 
-def bridge_candidates(walls, final, frac_slow, st_windows):
+# --- PR3 constants (hill-climbed on the public window; see PREREGISTRATION
+# PR3 addendum for the ablation table and the full-match structure checks) --
+BRIDGE_ABS = 0.55   # Rule-B2: frac_slow ceiling for a played-through wall
+ST_GAP = 300        # Rule-S: max frames from wall end to an ST set-piece start
+KICK_TAU = 0.12     # Rule-K: trailing ball speed (m/frame) that ends dead ball
+KICK_WIN, KICK_EXT_CAP = 25, 300  # Rule-K window / extension cap (frames)
+SHAPE_W = 200       # Rule-Q: boundary search window (frames)
+SHAPE_SUSTAIN = 75  # Rule-Q: shape sign must hold this long after the flip
+SHAPE_FRAC = 0.8    # Rule-Q: min share of the sustain window with the new sign
+SHAPE_SMOOTH = 25   # Rule-Q: half-window for the spread-difference smoother
+
+
+def bridge_candidates(walls, final, frac_slow, st_windows, abs_thr=None):
     """Morph walls to bridge: same-team flanks + stillness dip, no ST.
 
     Bundle-day Rule-B (literal, threshold-free): a ball-blind span the
@@ -946,6 +962,11 @@ def bridge_candidates(walls, final, frac_slow, st_windows):
     with the same team either side and no documented set piece is live
     ball (occlusion), not dead. Flanks are nearest H/A runs (>= PRUNE).
     Returns [(ws, we)] bridged away. 6/133 fire on the bundle.
+
+    PR3 Rule-B2 (abs_thr): the dip test compares the wall with its flanks,
+    so a wall after a sprint (flank stillness ~0) can never pass. A wall
+    whose players are mostly moving in absolute terms (frac_slow below
+    abs_thr) is also played through. Same flanks/ST gates apply.
     """
     n = len(final)
     bridged = []
@@ -974,7 +995,7 @@ def bridge_candidates(walls, final, frac_slow, st_windows):
             sw = float(np.nanmean(frac_slow[ws:we]))
             sL = float(np.nanmean(frac_slow[max(0, ws - 150):ws]))
             sR = float(np.nanmean(frac_slow[we:min(n, we + 150)]))
-        if not (sw < min(sL, sR)):
+        if not (sw < min(sL, sR) or (abs_thr is not None and sw < abs_thr)):
             continue
         if any(a < we and b > ws for a, b, _ in st_windows):
             continue
@@ -1046,6 +1067,189 @@ def refine_boundaries(final, letter, gate, walls, halves, out_mask=None):
     return out, moves
 
 
+def slot_spreads(raw_path, team_of_track, n, pitch):
+    """Per-frame RMS spread of each team around its own centroid (metres).
+
+    RMS spread needs only per-team sums (count, sum x/y, sum x^2+y^2), so
+    one raw pass suffices. NaN where a team has <3 visible slots. The
+    in-possession team plays wider; spreadH - spreadA is the Rule-Q shape
+    signal. Independent of the ball, so it is defined on ball-NaN frames.
+    """
+    length, width = pitch
+    sh = np.full(n, np.nan)
+    sa = np.full(n, np.nan)
+    with open(raw_path) as handle:
+        for line in handle:
+            parts = line.split(":")
+            if len(parts) != 3:
+                continue
+            frame = int(parts[0]) - 1
+            if not (0 <= frame < n):
+                continue
+            cnt = [0, 0]
+            sx = [0.0, 0.0]
+            sy = [0.0, 0.0]
+            sq = [0.0, 0.0]
+            for slot, group in enumerate(parts[1].split(";")):
+                if group[0] == "N":
+                    continue
+                c = group.index(",")
+                x = float(group[:c]) * length
+                y = float(group[c + 1:group.index(",", c + 1)]) * width
+                t = 0 if team_of_track[slot] == HOME else 1
+                cnt[t] += 1
+                sx[t] += x
+                sy[t] += y
+                sq[t] += x * x + y * y
+            for t, out in ((0, sh), (1, sa)):
+                if cnt[t] >= 3:
+                    mx, my = sx[t] / cnt[t], sy[t] / cnt[t]
+                    var = sq[t] / cnt[t] - mx * mx - my * my
+                    out[frame] = float(np.sqrt(max(var, 0.0)))
+    return sh, sa
+
+
+def shape_sign(sh, sa, half_win=SHAPE_SMOOTH):
+    """Smoothed sign of (spreadH - spreadA) as H/A/X per frame (Rule-Q)."""
+    sd = sh - sa
+    ok = ~np.isnan(sd)
+    filled = np.where(ok, sd, 0.0)
+    k = np.ones(2 * half_win + 1)
+    num = np.convolve(filled, k, "same")
+    den = np.convolve(ok.astype(float), k, "same")
+    mean = np.where(den > 10, num / np.maximum(den, 1), np.nan)
+    return np.where(mean > 0, "H", np.where(mean < 0, "A", "X")).astype("<U1")
+
+
+def shape_refine_boundaries(final, letter, sgn, walls):
+    """Advance H/A boundaries to a fresh team-shape flip (Rule-Q).
+
+    Team shape (RMS spread difference) reorganises when possession
+    changes and can flip well before ball proximity does. A boundary
+    moves earlier only where: the shape sign freshly flips to the
+    incoming team within SHAPE_W, holds for SHAPE_SUSTAIN (SHAPE_FRAC
+    share), raw votes in the moved span still favour the outgoing team
+    (shape leads votes; if votes already flipped, Rule-R/interpolate
+    owns the boundary), the move exceeds PRUNE, and no wall is crossed.
+    Returns (labels, moves).
+    """
+    n = len(final)
+    wmask = np.zeros(n, dtype=bool)
+    for ws, we, _ in walls:
+        wmask[ws:we] = True
+    out = final.copy()
+    moves = []
+    for b in np.flatnonzero(out[1:] != out[:-1]) + 1:
+        lt, rt = out[b - 1], out[b]
+        if lt not in ("H", "A") or rt not in ("H", "A"):
+            continue
+        cand = None
+        for c in range(max(1, b - SHAPE_W), b):
+            if sgn[c] != rt or sgn[c - 1] == rt:
+                continue  # fresh flip into the incoming team's shape
+            seg = sgn[c:c + SHAPE_SUSTAIN]
+            if len(seg) < SHAPE_SUSTAIN or np.mean(seg == rt) < SHAPE_FRAC:
+                continue
+            cand = c
+            break
+        if cand is None or b - cand <= PRUNE:
+            continue
+        if (out[cand:b] != lt).any() or wmask[cand:b].any():
+            continue
+        v = letter[cand:b]
+        v = v[v != "X"]
+        if not len(v) or np.mean(v == lt) < 0.5:
+            continue  # votes already flipped: not a shape-led boundary
+        out[cand:b] = rt
+        moves.append((int(b), int(cand)))
+    return out, moves
+
+
+def setpiece_events(meta_path, game=GAME, data_dir=None):
+    """[(start_frame, 'H'/'A')] for ST SET PIECES with a mapped team.
+
+    Throw-ins/kick-offs carry Team 'N/A' in the XML and are skipped: the
+    restart team is exactly what they do not say (DATA.md). Missing ST
+    asset -> [] (Rule-S simply never fires).
+    """
+    try:
+        events = st_load(game, data_dir)
+    except Exception as err:  # IOError (gated bundle) or XML parse failure
+        print("setpiece_events: no Smart Tagging ({}) -> "
+              "Rule-S off".format(err).split("\n")[0])
+        return []
+    home_name, away_name = team_names(meta_path)
+    team_of = {home_name: "H", away_name: "A"}
+    out = []
+    for ev in events:
+        if (ev["code"] or "").strip().lower() != "set pieces":
+            continue
+        team = team_of.get(ev["tags"].get("Team"))
+        if team is not None:
+            out.append((int(ev["start_frame"]), team))
+    return sorted(out)
+
+
+def st_restart_walls(walls, final, events):
+    """Extend wall ends to a nearby ST set-piece start (Rule-S).
+
+    Morphology walls end when the ball reappears, but a restart is dead
+    until it is taken. If Smart Tagging starts a set piece for the team
+    that owns the next spell within ST_GAP after a wall end, dead ball
+    runs to the tagged start. Returns merged walls.
+    """
+    n = len(final)
+    out = []
+    for ws, we, flag in walls:
+        newe = we
+        i = we
+        while i < n and final[i] not in ("H", "A"):
+            i += 1
+        nxt = final[i] if i < n else None
+        for start, team in events:
+            if we < start <= we + ST_GAP and team == nxt:
+                newe = start
+                break
+        out.append((ws, newe, flag))
+    return merge_wall_intervals(out)
+
+
+def kick_extend_walls(walls, disp, halves=None):
+    """Extend wall ends until the ball is actually played (Rule-K).
+
+    A restart requires a kick: while the trailing KICK_WIN mean ball
+    displacement stays below KICK_TAU the ball has not been put in play
+    (it is being placed or carried), so the wall stands. Extension is
+    capped at KICK_EXT_CAP and clipped to the wall's half. A trailing
+    window with no visible ball sample is not stillness (the ball is
+    lost, not placed), so extension stops there. Returns merged walls.
+    """
+    n = len(disp)
+    finite = np.isfinite(disp)
+    csum = np.concatenate(([0.0], np.cumsum(np.where(finite, disp, 0.0))))
+    ccnt = np.concatenate(([0.0], np.cumsum(finite.astype(float))))
+
+    def trailing(i):
+        a = max(0, i - KICK_WIN)
+        cnt = ccnt[i] - ccnt[a]
+        if cnt < 1:
+            return np.inf  # no ball sample: unknown, not slow
+        return (csum[i] - csum[a]) / cnt
+
+    out = []
+    for ws, we, flag in walls:
+        cap = min(we + KICK_EXT_CAP, n)
+        if halves is not None:
+            for _, ha, hb in halves:
+                if ha <= ws <= hb:
+                    cap = min(cap, hb + 1)
+        e = we
+        while e < cap and trailing(e) < KICK_TAU:
+            e += 1
+        out.append((ws, e, flag))
+    return merge_wall_intervals(out)
+
+
 def seed_chain(chain, prior, halves):
     """Seed each half's leading chain-X run from the interpolated team.
 
@@ -1065,7 +1269,8 @@ def seed_chain(chain, prior, halves):
 
 
 def run_pipeline(raw_path, meta_path, halves, n, pitch, walls=None,
-                 use_touch=False, use_e6=False, use_refine=False):
+                 use_touch=False, use_e6=False, use_refine=False,
+                 use_shape=False):
     """Full integrated stack -> (final labels, walls). No I/O.
 
     walls=None derives K1 morphology walls from the scan's own codes.
@@ -1135,6 +1340,12 @@ def run_pipeline(raw_path, meta_path, halves, n, pitch, walls=None,
         final, moves = refine_boundaries(final, letter, gate, walls, halves,
                                          out_mask)
         print("refine: {} boundary moves {}".format(len(moves), moves))
+    if use_shape:
+        sh, sa = slot_spreads(raw_path, team_of_each_track(meta_path), n,
+                              pitch)
+        final, moves = shape_refine_boundaries(final, letter,
+                                               shape_sign(sh, sa), walls)
+        print("shape: {} boundary moves {}".format(len(moves), moves))
     assert_wall_invariants(final, walls, d_pre, halves)  # shipped artifact
     return final, walls
 
@@ -1394,7 +1605,24 @@ def main(argv=None):
                     help="desert-fill boundaries to vote crossover (Rule-R)")
     ap.add_argument("--no-refine", dest="refine", action="store_false",
                     help="ablation: disable Rule-R")
-    ap.set_defaults(outD=True, bridge=True, refine=True)
+    ap.add_argument("--bridgeabs", dest="bridgeabs", action="store_true",
+                    help="absolute-movement bridge test (Rule-B2)")
+    ap.add_argument("--no-bridgeabs", dest="bridgeabs", action="store_false",
+                    help="ablation: disable Rule-B2")
+    ap.add_argument("--ststart", dest="ststart", action="store_true",
+                    help="extend walls to ST set-piece starts (Rule-S)")
+    ap.add_argument("--no-ststart", dest="ststart", action="store_false",
+                    help="ablation: disable Rule-S")
+    ap.add_argument("--kick", dest="kick", action="store_true",
+                    help="extend walls until the ball is played (Rule-K)")
+    ap.add_argument("--no-kick", dest="kick", action="store_false",
+                    help="ablation: disable Rule-K")
+    ap.add_argument("--shape", dest="shape", action="store_true",
+                    help="advance boundaries to shape flips (Rule-Q)")
+    ap.add_argument("--no-shape", dest="shape", action="store_false",
+                    help="ablation: disable Rule-Q")
+    ap.set_defaults(outD=True, bridge=True, refine=True, bridgeabs=True,
+                    ststart=True, kick=True, shape=True)
     args = ap.parse_args(argv)
     meta_path, raw_path = require(["atd_meta", "atd_raw"], GAME, None)
     n = source_frames("tactical", GAME)
@@ -1416,35 +1644,48 @@ def main(argv=None):
             walls = detect_dead_spans(nx, ny, mean_spd, frac_slow, halves,
                                       pitch, st_windows)
             print("ST windows: {}".format(len(st_windows)))
-        if (args.bridge or args.outD) and not args.walls:
+        if (args.bridge or args.outD or args.ststart or args.kick) \
+                and not args.walls:
             # Two-pass: pass 1 is the control (the bridge audit reads its
-            # flanks); pass 2 re-runs with bridged walls + outD spans.
-            # Both flags are ignored under --walls (trigger population).
+            # flanks); pass 2 re-runs with corrected walls. The wall flags
+            # are ignored under --walls (trigger population).
             nx, ny = ball_track(raw_path, n)
+            scan_out = scan(raw_path, team_of_track, n, pitch)
+            morph = morphology_walls(scan_out[0], halves)
+            walls = morph
             if args.bridge:
                 control, _ = run_pipeline(
                     raw_path, meta_path, halves, n, pitch, None,
                     use_touch=args.touch, use_e6=args.e6)
                 mean_spd, frac_slow, _ = slot_speeds(raw_path, n)
                 st_windows = setpiece_windows()
-                morph = morphology_walls(
-                    scan(raw_path, team_of_track, n, pitch)[0], halves)
-                bridged = bridge_candidates(morph, control, frac_slow,
-                                            st_windows)
+                bridged = bridge_candidates(
+                    morph, control, frac_slow, st_windows,
+                    abs_thr=BRIDGE_ABS if args.bridgeabs else None)
                 walls = [w for w in morph if (w[0], w[1]) not in bridged]
                 print("bridge: dropping {} walls {}".format(len(bridged),
                                                             bridged))
-            else:
-                walls = morphology_walls(
-                    scan(raw_path, team_of_track, n, pitch)[0], halves)
             if args.outD:
                 extra = out_spans(nx, ny, halves)
                 walls = merge_wall_intervals(walls + extra)
                 print("outD: adding {} spans {}".format(
                     len(extra), [(a, b) for a, b, _ in extra]))
+            if args.ststart or args.kick:
+                if args.ststart:
+                    ctrl, _ = run_pipeline(
+                        raw_path, meta_path, halves, n, pitch, walls,
+                        use_touch=args.touch, use_e6=args.e6,
+                        use_refine=args.refine)
+                    walls = st_restart_walls(
+                        walls, ctrl, setpiece_events(meta_path))
+                    print("ststart: walls extended to ST set-piece starts")
+                if args.kick:
+                    walls = kick_extend_walls(walls, scan_out[3], halves)
+                    print("kick: walls extended until the ball is played")
         final, walls = run_pipeline(raw_path, meta_path, halves, n, pitch,
                                     walls, use_touch=args.touch,
-                                    use_e6=args.e6, use_refine=args.refine)
+                                    use_e6=args.e6, use_refine=args.refine,
+                                    use_shape=args.shape)
         n_d = sum(we - ws for ws, we, _ in walls)
         flags = {}
         for _, _, flag in walls:
