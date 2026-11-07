@@ -947,7 +947,7 @@ def merge_wall_intervals(walls):
 BRIDGE_ABS = 0.55   # Rule-B2: frac_slow ceiling for a played-through wall
 ST_GAP = 300        # Rule-S: max frames from wall end to an ST set-piece start
 KICK_TAU = 0.12     # Rule-K: trailing ball speed (m/frame) that ends dead ball
-KICK_WIN, KICK_CAP = 25, 300  # Rule-K trailing window / extension cap (frames)
+KICK_WIN, KICK_EXT_CAP = 25, 300  # Rule-K window / extension cap (frames)
 SHAPE_W = 200       # Rule-Q: boundary search window (frames)
 SHAPE_SUSTAIN = 75  # Rule-Q: shape sign must hold this long after the flip
 SHAPE_FRAC = 0.8    # Rule-Q: min share of the sustain window with the new sign
@@ -1174,7 +1174,9 @@ def setpiece_events(meta_path, game=GAME, data_dir=None):
     """
     try:
         events = st_load(game, data_dir)
-    except Exception:
+    except Exception as err:  # IOError (gated bundle) or XML parse failure
+        print("setpiece_events: no Smart Tagging ({}) -> "
+              "Rule-S off".format(err).split("\n")[0])
         return []
     home_name, away_name = team_names(meta_path)
     team_of = {home_name: "H", away_name: "A"}
@@ -1218,8 +1220,9 @@ def kick_extend_walls(walls, disp, halves=None):
     A restart requires a kick: while the trailing KICK_WIN mean ball
     displacement stays below KICK_TAU the ball has not been put in play
     (it is being placed or carried), so the wall stands. Extension is
-    capped at KICK_CAP and clipped to the wall's half. Returns merged
-    walls.
+    capped at KICK_EXT_CAP and clipped to the wall's half. A trailing
+    window with no visible ball sample is not stillness (the ball is
+    lost, not placed), so extension stops there. Returns merged walls.
     """
     n = len(disp)
     finite = np.isfinite(disp)
@@ -1228,11 +1231,14 @@ def kick_extend_walls(walls, disp, halves=None):
 
     def trailing(i):
         a = max(0, i - KICK_WIN)
-        return (csum[i] - csum[a]) / max(ccnt[i] - ccnt[a], 1.0)
+        cnt = ccnt[i] - ccnt[a]
+        if cnt < 1:
+            return np.inf  # no ball sample: unknown, not slow
+        return (csum[i] - csum[a]) / cnt
 
     out = []
     for ws, we, flag in walls:
-        cap = min(we + KICK_CAP, n)
+        cap = min(we + KICK_EXT_CAP, n)
         if halves is not None:
             for _, ha, hb in halves:
                 if ha <= ws <= hb:
@@ -1600,7 +1606,7 @@ def main(argv=None):
     ap.add_argument("--no-refine", dest="refine", action="store_false",
                     help="ablation: disable Rule-R")
     ap.add_argument("--bridgeabs", dest="bridgeabs", action="store_true",
-                    help="absolute-stillness bridge test (Rule-B2)")
+                    help="absolute-movement bridge test (Rule-B2)")
     ap.add_argument("--no-bridgeabs", dest="bridgeabs", action="store_false",
                     help="ablation: disable Rule-B2")
     ap.add_argument("--ststart", dest="ststart", action="store_true",

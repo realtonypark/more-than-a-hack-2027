@@ -24,6 +24,9 @@ def test_kick_extends_until_ball_moves():
     assert 60 <= out[0][1] <= 70, out  # extends past 30, stops at the kick
     out = kick_extend_walls([(10, 30, "morphD")], np.zeros(200))
     assert out[0][1] == 30 + 300 or out[0][1] == 200, out  # cap, never > n
+    disp = np.full(200, np.nan)  # ball never visible: not stillness
+    out = kick_extend_walls([(10, 30, "morphD")], disp)
+    assert out[0][1] == 30, out
 
 
 def test_st_restart_extends_to_setpiece_start():
@@ -60,14 +63,26 @@ def test_bridge_absolute_stillness():
 
 
 def test_slot_spreads_rms(tmp_path=None):
-    # Two home slots 10 m apart, two away slots together: spreadH > spreadA.
-    path = "/tmp/test_atd_rules.txt"
+    # Three home slots spread out, three away slots together: spreadH > spreadA.
+    import tempfile
     row = ("1:"
            "0.00,0.50,NaN;0.20,0.50,NaN;0.00,0.50,NaN;"
            "0.50,0.50,NaN;0.50,0.50,NaN;0.50,0.50,NaN:"
            "0.15,0.50,NaN\n")
-    with open(path, "w") as handle:
-        handle.write(row * 3)
+    if tmp_path is not None:  # pytest fixture
+        path = str(tmp_path / "atd.txt")
+        with open(path, "w") as handle:
+            handle.write(row * 3)
+        _check_spreads(path)
+    else:  # direct execution
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "atd.txt")
+            with open(path, "w") as handle:
+                handle.write(row * 3)
+            _check_spreads(path)
+
+
+def _check_spreads(path):
     team = np.array([HOME, HOME, HOME, 1, 1, 1], dtype=np.int8)
     sh, sa = slot_spreads(path, team, 3, (100.0, 100.0))
     assert sh[0] > 9.0 and sa[0] < 0.1, (sh, sa)

@@ -196,9 +196,15 @@ reported, not hidden). Full-video structure sane: 274 H/A spells
 
 Method note: unlike the frozen stacks above, PR3 constants were selected
 by measuring on the public window (the user-directed hill-climb for this
-PR). Every candidate below is a global mechanism (no per-frame rules);
-each ships default-on with a `--no-*` ablation, and the window numbers
-are reported with their bootstrap interval, not as proof of transfer.
+PR). This is EXPLORATORY and NON-REGISTERED work: it does not satisfy
+the pre-registration above ("Public GT is diagnostic-only, never a
+selector", line 12) and cannot count toward any pre-registered ship
+rule. It is recorded so the deviation is explicit, not laundered into
+the frozen record. Every candidate below is a global mechanism (no
+per-frame rules); the four rules ship default-on with `--no-*`
+ablations (MARGIN has no flag; its grid comparison is documented
+below), and the window numbers are reported with their bootstrap
+interval, not as proof of transfer.
 Killed on measurement during the climb: DP/Viterbi segmentation (best
 0.6286 < anchor-interpolate), naive vote-run insertion (0.4571, precision
 collapse -- the PR2 n-theorem again), anchorless-episode vote painting
@@ -210,14 +216,16 @@ Shipped (ablations measured on the shipped pipeline, public window):
 - MARGIN 3.0 -> 3.5 (anchor gate): grid 3.0/3.5/4.0 = 0.6000/0.6286/
   0.6143 standalone on the PR2 stack; the only PR1 constant changed.
 - Rule-B2 (--bridgeabs): bridge also fires when wall-span frac_slow <
-  BRIDGE_ABS=0.55 (absolute stillness), same flanks/ST gates as Rule-B.
-  Ablation: 0.6857 (-0.0143).
+  BRIDGE_ABS=0.55 (absolute movement: low slow-player share), same
+  flanks/ST gates as Rule-B. Ablation: 0.6857 (-0.0143).
 - Rule-S (--ststart): wall end extends to an ST set-piece start within
   ST_GAP=300 when the tagged team owns the next spell. 7 fire globally.
   Ablation: 0.6714 spell / 0.7402 macro (-0.0286 / -0.0629).
 - Rule-K (--kick): wall end extends while trailing-25f mean ball
-  displacement < KICK_TAU=0.12 m/frame, cap KICK_CAP=300, clipped to
-  the half. Ablation: spell-neutral, macro 0.7639 (-0.0392).
+  displacement < KICK_TAU=0.12 m/frame, cap KICK_EXT_CAP=300, clipped
+  to the half; the trailing window needs >=1 visible ball sample
+  (a lost ball is not a placed ball). Ablation: spell-neutral,
+  macro 0.7639 (-0.0130).
 - Rule-Q (--shape): H/A boundary advances to a fresh team-shape flip
   (RMS spread difference, +-25f smoother) when the flip sustains 75f
   at >=0.8 share and raw votes in the moved span still favour the
@@ -225,12 +233,17 @@ Shipped (ablations measured on the shipped pipeline, public window):
   Ablation: 0.6714 (-0.0286).
 
 Proof (public window, 17 spells): PR2 stack 0.6000/11 (macro 0.7028)
--> PR3 0.7000/11 (macro 0.8031; per-IoU matched 10/10/10/10/9;
+-> PR3 0.7000/11 (macro 0.7769; per-IoU matched 10/10/10/10/9;
 90% bootstrap CI [0.4714, 0.8589] over 1000 draws -- wide and
 overlapping PR2's interval, reported not hidden). D precision in-window
 0.997 (wall extensions almost never eat live ball). Full-video
-structure: 236 H/A spells (X-bridged; 250-450 band is for raw runs --
-validate_submission counts the same 236), D-share 33.6% of video
-(raised by Rule-S/K extensions; in-window D F1 supports the direction,
-full-match D share is the named transfer risk). Regression checks in
-starter/test_possession_rules.py (synthetic, data-free).
+structure GATE: FAIL. The output has 245 H/A spells, below the
+registered 250-450 ship band (line 125); no re-interpretation is
+offered. D-share is 31.0% of video and 38.9% in-half, outside the
+[0.15, 0.30] audit band noted in the residual above; no registered
+threshold covers it, so no "sane" claim is made. Both deviations
+follow from the Rule-S/K wall extensions (in-window D F1 supports
+the direction; full-match stoppage share is the named transfer risk)
+and are accepted only under this addendum's exploratory status.
+Regression checks in starter/test_possession_rules.py (synthetic,
+data-free).
